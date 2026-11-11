@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+node_modules/
+dist/
+build/
+.DS_Store
+
+# сборка
+dist/
+src-tauri/target/
+
+# ядро, драйвер и базы: 44 МБ чужих бинарников, в гит не кладём.
+# Собираются скриптом scripts/resources.ps1 на машине сборки
+src-tauri/resources/
+src-tauri/resources-macos/
+
+# локальные заметки и настройки инструментов
+CLAUDE.md
+.claude/
+scripts/release.env

@@ -1,0 +1,1440 @@
+:root {
+  --фон: #0a0c10;
+  --карточка: #141922;
+  --грань: #222b38;
+  --текст: #e6edf3;
+  --тусклый: #8b949e;
+  --основной: #2f81f7;
+  --удача: #42d17a;
+  --беда: #f85149;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--фон);
+  color: var(--текст);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+.экран {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 22px 20px;
+}
+
+.экран.по-центру {
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* --- шапка --- */
+.шапка {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.шапка-право {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.знак {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: 0.5px;
+}
+
+.знак.малый {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.значок {
+  background: none;
+  border: none;
+  color: var(--тусклый);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.значок:hover {
+  color: var(--текст);
+}
+
+/* --- переключатель движка --- */
+.режимы {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.режим {
+  background: transparent;
+  border: 1px solid var(--грань);
+  color: var(--тусклый);
+  border-radius: 9px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.режим.выбран {
+  border-color: var(--удача);
+  color: var(--удача);
+}
+
+.режим:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* --- скорости и часы --- */
+.показания {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--тусклый);
+}
+
+.темп.вверх {
+  text-align: left;
+}
+
+.темп.вниз {
+  text-align: right;
+}
+
+.темп.часы {
+  font-size: 15px;
+  color: var(--текст);
+  letter-spacing: 1px;
+}
+
+/* --- кнопка включения --- */
+.пульт {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 2px;
+}
+
+.круг {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  border: 2px solid var(--грань);
+  background: radial-gradient(circle at 50% 42%, #19202b 0%, #10151d 72%);
+  color: var(--тусклый);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: border-color 0.35s, color 0.35s, transform 0.15s;
+}
+
+.круг:active {
+  transform: scale(0.97);
+}
+
+.круг .щит {
+  width: 56px;
+  height: 64px;
+  position: relative;
+  z-index: 2;
+  transition: filter 0.35s;
+}
+
+.круг.вкл {
+  border-color: var(--удача);
+  color: var(--удача);
+}
+
+.круг.вкл .щит {
+  filter: drop-shadow(0 0 14px rgba(66, 209, 122, 0.55));
+  animation: дышать 3.2s ease-in-out infinite;
+}
+
+.круг.ждём {
+  border-color: var(--основной);
+  color: var(--основной);
+  cursor: progress;
+}
+
+.круг.ждём .щит {
+  animation: мигать 1.1s ease-in-out infinite;
+}
+
+/* Ореол во включённом состоянии */
+.ореол {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(66, 209, 122, 0.22) 0%, transparent 68%);
+  transition: opacity 0.5s;
+}
+
+.круг.вкл .ореол {
+  opacity: 1;
+  animation: пульс-ореола 3.2s ease-in-out infinite;
+}
+
+/* Расходящиеся волны, пока подключаемся */
+.волна {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0;
+}
+
+.круг.ждём .волна {
+  animation: волна 1.8s ease-out infinite;
+}
+
+.круг.ждём .волна.две {
+  animation-delay: 0.9s;
+}
+
+@keyframes волна {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+@keyframes дышать {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes пульс-ореола {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes мигать {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.состояние {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--тусклый);
+  transition: color 0.35s;
+}
+
+.состояние.вкл {
+  color: var(--удача);
+}
+
+.состояние.ждём {
+  color: var(--основной);
+}
+
+.выбранный {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+}
+
+/* --- список серверов --- */
+.блок {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.блок-шапка {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.тускло {
+  color: var(--тусклый);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.список {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  /* Полосу прокрутки прячем: крутится, но не мозолит глаза */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.список::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.сервер {
+  display: flex;
+  align-items: center;
+  justify-content: center; /* названия по центру, не прижаты вправо */
+  gap: 10px;
+  background: var(--карточка);
+  border: 1px solid var(--грань);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: center;
+  transition: border-color 0.18s, transform 0.18s, background 0.18s;
+  animation: всплыть 0.32s ease both;
+}
+
+.сервер:hover {
+  border-color: #33415a;
+  transform: translateY(-1px);
+}
+
+.сервер.выбран {
+  border-color: var(--удача);
+  background: #16211a;
+}
+
+.сервер-имя {
+  font-weight: 500;
+}
+
+@keyframes всплыть {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- флаги --- */
+.флаг {
+  width: 21px;
+  height: 15px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background-size: cover;
+}
+
+.флаг.пусто {
+  background: var(--грань);
+}
+
+/* --- вход --- */
+.поля {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.поле {
+  background: var(--карточка);
+  border: 1px solid var(--грань);
+  border-radius: 10px;
+  padding: 13px 14px;
+  color: var(--текст);
+  font-size: 15px;
+  outline: none;
+  user-select: text;
+  transition: border-color 0.15s;
+}
+
+.поле:focus {
+  border-color: var(--основной);
+}
+
+.поле.код {
+  text-align: center;
+  letter-spacing: 6px;
+  font-size: 20px;
+}
+
+.кнопка {
+  background: var(--основной);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 13px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.12s;
+}
+
+.кнопка:active {
+  transform: scale(0.99);
+}
+
+.кнопка:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.кнопка.второстепенная {
+  background: transparent;
+  color: var(--тусклый);
+  font-weight: 400;
+  font-size: 13px;
+  padding: 8px;
+}
+
+.строка {
+  margin: 0;
+  color: var(--тусклый);
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.строка.мелко {
+  font-size: 12px;
+}
+
+.беда {
+  margin: 0;
+  color: var(--беда);
+  font-size: 13px;
+  text-align: center;
+  animation: всплыть 0.25s ease both;
+}
+
+
+/* --- выбор туннеля --- */
+.режим.раскрыт {
+  border-color: var(--основной);
+  color: var(--основной);
+}
+
+.подложка {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+}
+
+.выбор-туннеля {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, 80vw);
+  z-index: 5;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  background: var(--карточка);
+  border: 1px solid var(--грань);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: выпасть 0.18s ease both;
+}
+
+@keyframes выпасть {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+.кнопка-шапки {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--карточка);
+  border: 1px solid var(--грань);
+  color: var(--текст);
+  border-radius: 9px;
+  padding: 6px 11px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.кнопка-шапки:hover {
+  border-color: #3a4a63;
+}
+
+.туннель {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.туннель:hover {
+  background: #1b2330;
+}
+
+.туннель.выбран {
+  color: var(--удача);
+}
+
+.туннель.скоро {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* --- настройки --- */
+.затемнение {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 7, 10, 0.72);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+  animation: проявиться 0.18s ease both;
+}
+
+.окошко {
+  width: min(420px, 90vw);
+  background: var(--карточка);
+  border: 1px solid var(--грань);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: подняться 0.22s ease both;
+}
+
+.окошко-шапка {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.настройка {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 4px;
+  border-top: 1px solid var(--грань);
+  cursor: pointer;
+}
+
+.настройка-текст {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.настройка-имя {
+  font-size: 14px;
+}
+
+.настройка-пояснение {
+  font-size: 12px;
+  color: var(--тусклый);
+}
+
+.галка {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--удача);
+  cursor: pointer;
+}
+
+@keyframes проявиться {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes подняться {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+
+/* --- объявление владельца из панели --- */
+.объявление {
+  position: relative;
+  background: linear-gradient(180deg, #171d27 0%, #131820 100%);
+  border: 1px solid var(--грань);
+  border-radius: 14px;
+  padding: 14px 20px 13px;
+  font-size: 13px;
+  color: #aeb8c4;
+  line-height: 1.7;
+  text-align: center;
+  cursor: pointer;
+  max-height: 124px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  transition: border-color 0.2s, transform 0.2s;
+  animation: всплыть 0.3s ease both;
+}
+
+/* тонкая янтарная черта сверху вместо полосы сбоку */
+.объявление::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 2px;
+  border-radius: 2px;
+  background: #d29922;
+  opacity: 0.85;
+}
+
+.объявление:hover {
+  border-color: #3a4a63;
+  transform: translateY(-1px);
+}
+
+.объявление::-webkit-scrollbar {
+  display: none;
+}
+
+.объявление p {
+  margin: 0;
+}
+
+.объявление p:first-child {
+  color: var(--текст);
+  font-weight: 600;
+}
+
+
+/* скорость крупно, под ней — сколько всего прошло за сессию */
+.темп.вверх,
+.темп.вниз {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.темп.вниз {
+  align-items: flex-end;
+}
+
+.темп b {
+  font-weight: 600;
+  color: var(--текст);
+  font-size: 14px;
+}
+
+.темп i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--тусклый);
+}
+
+
+/* --- шестерёнка настроек слева сверху --- */
+.шапка-лево {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.шестерня {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: var(--карточка);
+  border: 1px solid var(--грань);
+  border-radius: 10px;
+  color: var(--тусклый);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, transform 0.45s ease;
+}
+
+.шестерня:hover {
+  color: var(--текст);
+  border-color: #3a4a63;
+  transform: rotate(60deg);
+}
+
+/* отключение: гаснем спокойным серым миганием */
+.круг.уходим {
+  border-color: #4b5563;
+  color: #9aa4b1;
+  cursor: progress;
+}
+
+.круг.уходим .щит {
+  animation: мигать 0.9s ease-in-out infinite;
+}
+
+.состояние.уходим {
+  color: #9aa4b1;
+}
+
+
+/* --- значки обновления и замера --- */
+.блок-кнопки {
+  display: flex;
+  gap: 8px;
+}
+
+.круглая {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: var(--карточка);
+  border: 1px solid var(--грань);
+  border-radius: 50%;
+  color: var(--тусклый);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.круглая:hover {
+  color: var(--текст);
+  border-color: #3a4a63;
+}
+
+.вращение {
+  animation: оборот 0.9s linear infinite;
+}
+
+.крутится-мягко {
+  color: var(--основной);
+  animation: мигать 0.9s ease-in-out infinite;
+}
+
+@keyframes оборот {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* задержка в строке сервера: справа, названия остаются по центру */
+.сервер {
+  position: relative;
+}
+
+.задержка {
+  position: absolute;
+  right: 14px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  animation: всплыть 0.25s ease both;
+}
+
+.задержка.хорошо {
+  color: var(--удача);
+}
+
+.задержка.средне {
+  color: #d29922;
+}
+
+.задержка.плохо {
+  color: var(--беда);
+}
+
+/* --- остаток трафика --- */
+.трафик {
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.трафик-строка {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.трафик-строка b {
+  color: var(--удача);
+  font-weight: 600;
+}
+
+.полоса {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--грань);
+  overflow: hidden;
+}
+
+.полоса-заполнено {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--удача), #2f81f7);
+  transition: width 0.6s ease;
+}
+
+
+/* --- сообщение по центру экрана --- */
+.весть {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  max-width: min(460px, 84vw);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 22px;
+  border-radius: 14px;
+  background: rgba(20, 25, 34, 0.97);
+  border: 1px solid var(--удача);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  animation: весть-появление 0.24s ease both;
+}
+
+.весть.беда {
+  border-color: var(--беда);
+}
+
+.весть-знак {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--удача);
+  color: #06140c;
+  font-weight: 700;
+}
+
+.весть.беда .весть-знак {
+  background: var(--беда);
+  color: #fff;
+}
+
+@keyframes весть-появление {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* --- кнопка пинга во время замера: яркий перелив от красного к зелёному --- */
+.круглая.меряет {
+  animation: перелив 1.1s linear infinite;
+}
+
+@keyframes перелив {
+  0% {
+    color: #ff5a4f;
+    border-color: #ff5a4f;
+    box-shadow: 0 0 14px rgba(255, 90, 79, 0.75);
+  }
+  50% {
+    color: #ffc93c;
+    border-color: #ffc93c;
+    box-shadow: 0 0 14px rgba(255, 201, 60, 0.75);
+  }
+  100% {
+    color: #3dff8f;
+    border-color: #3dff8f;
+    box-shadow: 0 0 16px rgba(61, 255, 143, 0.85);
+  }
+}
+
+
+/* ===================== объём ===================== */
+body {
+  background:
+    radial-gradient(900px 520px at 50% -8%, #17202e 0%, transparent 62%),
+    radial-gradient(700px 420px at 50% 108%, #101a16 0%, transparent 60%),
+    var(--фон);
+}
+
+/* Кнопка: выпуклая линза с бликом сверху и тенью под собой */
+.круг {
+  width: 176px;
+  height: 176px;
+  border: none;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.13) 0%, transparent 46%),
+    radial-gradient(circle at 50% 118%, rgba(0, 0, 0, 0.6) 0%, transparent 58%),
+    linear-gradient(160deg, #252e3c 0%, #121720 58%, #0b0f15 100%);
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.62),
+    0 5px 0 #070a0e,
+    inset 0 2px 1px rgba(255, 255, 255, 0.16),
+    inset 0 -10px 20px rgba(0, 0, 0, 0.55),
+    0 0 0 2px #2a3443;
+  transition: box-shadow 0.4s, color 0.35s, transform 0.14s;
+}
+
+.круг:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.круг:active:not(:disabled) {
+  transform: translateY(4px) scale(0.985);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.6),
+    0 1px 0 #070a0e,
+    inset 0 6px 16px rgba(0, 0, 0, 0.6),
+    0 0 0 2px #2a3443;
+}
+
+.круг.вкл {
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.6),
+    0 5px 0 #06140c,
+    inset 0 2px 1px rgba(255, 255, 255, 0.2),
+    inset 0 -10px 22px rgba(0, 0, 0, 0.5),
+    0 0 0 2px var(--удача),
+    0 0 46px rgba(66, 209, 122, 0.42);
+}
+
+.круг.ждём {
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.62),
+    0 5px 0 #070a0e,
+    inset 0 2px 1px rgba(255, 255, 255, 0.16),
+    inset 0 -10px 20px rgba(0, 0, 0, 0.55),
+    0 0 0 2px var(--основной),
+    0 0 40px rgba(47, 129, 247, 0.4);
+}
+
+/* Робот: крупнее, с собственной тенью; во включённом — горят глаза */
+.круг .щит {
+  width: 78px;
+  height: 78px;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.6));
+}
+
+.круг.вкл .щит {
+  filter: drop-shadow(0 0 12px rgba(66, 209, 122, 0.7)) drop-shadow(0 4px 3px rgba(0, 0, 0, 0.5));
+}
+
+.круг.вкл .глаз {
+  animation: моргнуть 4.2s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.круг.ждём .глаз {
+  animation: мигать 0.7s ease-in-out infinite;
+}
+
+@keyframes моргнуть {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.12);
+  }
+}
+
+/* Плашки серверов: выпуклые, приподнимаются под курсором */
+.сервер {
+  background: linear-gradient(180deg, #1b222d 0%, #131820 100%);
+  border-color: #263142;
+  box-shadow:
+    0 3px 0 #0a0d12,
+    0 8px 18px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.сервер:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 5px 0 #0a0d12,
+    0 14px 26px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.сервер:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 #0a0d12,
+    inset 0 3px 8px rgba(0, 0, 0, 0.45);
+}
+
+.сервер.выбран {
+  background: linear-gradient(180deg, #1c2c22 0%, #142019 100%);
+  box-shadow:
+    0 3px 0 #08130c,
+    0 10px 24px rgba(66, 209, 122, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Остальные поверхности — та же логика света сверху */
+.объявление,
+.режим,
+.круглая,
+.шестерня,
+.окошко,
+.весть {
+  box-shadow:
+    0 3px 0 #0a0d12,
+    0 10px 22px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.режим,
+.круглая,
+.шестерня {
+  background: linear-gradient(180deg, #1c232e 0%, #131820 100%);
+}
+
+.круглая:active,
+.шестерня:active,
+.режим:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+
+.полоса {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.полоса-заполнено {
+  box-shadow: 0 0 10px rgba(66, 209, 122, 0.5);
+}
+
+.флаг {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.состояние.вкл {
+  text-shadow: 0 0 18px rgba(66, 209, 122, 0.55);
+}
+
+
+/* --- итог обновления: накрывает блок объявления --- */
+.место-объявления {
+  position: relative;
+  min-height: 58px;
+}
+
+.место-объявления .весть {
+  position: absolute;
+  inset: 0;
+  top: 0;
+  left: 0;
+  transform: none;
+  max-width: none;
+  justify-content: center;
+  text-align: center;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #16241c 0%, #111a15 100%);
+  animation: накрыть 0.28s ease both, уйти 0.4s ease 2s both;
+}
+
+.место-объявления .весть.беда {
+  background: linear-gradient(180deg, #2a1717 0%, #1c1111 100%);
+  animation: накрыть 0.28s ease both, уйти 0.4s ease 4.8s both;
+}
+
+@keyframes накрыть {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes уйти {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+/* --- обновление: крутилка зеленеет, пока работает --- */
+.круглая.освежает {
+  color: #3dff8f;
+  border-color: #3dff8f;
+  box-shadow: 0 0 16px rgba(61, 255, 143, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+
+/* ===================== робот ===================== */
+.круг {
+  width: 196px;
+  height: 196px;
+}
+
+.круг .щит {
+  width: 118px;
+  height: 122px;
+  overflow: visible;
+}
+
+.рот {
+  fill: none;
+  stroke: #0a0d12;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  display: none;
+}
+
+.слеза {
+  fill: #7fd4ff;
+  display: none;
+}
+
+/* отключено: красный, грустит, течёт слеза */
+.круг.выкл {
+  color: #ee5148;
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.62),
+    0 5px 0 #070a0e,
+    inset 0 2px 1px rgba(255, 255, 255, 0.16),
+    inset 0 -10px 20px rgba(0, 0, 0, 0.55),
+    0 0 0 2px #5a2623,
+    0 0 34px rgba(238, 81, 72, 0.22);
+}
+
+.круг.выкл .рот.грусть,
+.круг.вкл .рот.улыбка,
+.круг.ждём .рот.ровный,
+.круг.уходим .рот.ровный {
+  display: block;
+}
+
+.круг.выкл .слеза {
+  display: block;
+  animation: слеза 2.6s ease-in infinite;
+}
+
+@keyframes слеза {
+  0% {
+    transform: translateY(-2px);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(13px);
+    opacity: 0;
+  }
+}
+
+/* подключено: зелёный и улыбается */
+.круг.вкл .щит {
+  animation: дышать 3.4s ease-in-out infinite;
+}
+
+.состояние.выкл {
+  color: #ee5148;
+}
+
+/* ===================== объявление и ссылки ===================== */
+.объявление {
+  cursor: default;
+}
+
+.объявление:hover {
+  border-color: var(--грань);
+  transform: none;
+}
+
+.место-объявления .весть {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.ссылки {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: -4px;
+}
+
+.ссылка {
+  flex: 1;
+  max-width: 220px;
+  padding: 9px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--грань);
+  background: linear-gradient(180deg, #171d27 0%, #12171f 100%);
+  color: var(--тусклый);
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 2px 0 #0a0d12, inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: color 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+.ссылка:hover {
+  color: var(--текст);
+  border-color: #3a4a63;
+  transform: translateY(-1px);
+}
+
+.ссылка:active {
+  transform: translateY(1px);
+}
+
+
+/* ===== верх поджат на пятую часть: серверам нужно больше места ===== */
+.экран {
+  gap: 10px;
+  padding: 14px 20px 16px;
+}
+
+.пульт {
+  gap: 7px;
+  padding: 2px 0 0;
+}
+
+.круг {
+  width: 156px;
+  height: 156px;
+}
+
+.круг .щит {
+  width: 94px;
+  height: 97px;
+}
+
+.состояние {
+  font-size: 15px;
+}
+
+.выбранный {
+  font-size: 14px;
+}
+
+.объявление {
+  padding: 10px 18px 9px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  max-height: 96px;
+}
+
+.место-объявления {
+  min-height: 48px;
+}
+
+.ссылка {
+  padding: 7px 14px;
+}
+
+.сервер {
+  padding: 11px 14px;
+}
+
+
+/* ===== слеза: светло-серая, из другого глаза, медленная ===== */
+.слеза {
+  fill: #d9e0e8;
+}
+
+.круг.выкл .слеза {
+  animation: слеза 5.2s ease-in infinite;
+}
+
+/* оранжевая черта над объявлением не нужна */
+.объявление::before {
+  display: none;
+}
+
+/* ===== верх сворачивается, когда листают серверы ===== */
+.верх {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 720px;
+  opacity: 1;
+  transform: none;
+  transition:
+    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.35s ease,
+    transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.верх.свёрнут {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-28px) scale(0.97);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.полоска {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--грань);
+  background: linear-gradient(180deg, #1b222d 0%, #131820 100%);
+  color: var(--текст);
+  font-size: 13.5px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #0a0d12, 0 10px 22px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: выехать 0.35s ease both;
+}
+
+.полоска-точка {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ee5148;
+  box-shadow: 0 0 10px rgba(238, 81, 72, 0.7);
+}
+
+.полоска.вкл .полоска-точка {
+  background: var(--удача);
+  box-shadow: 0 0 10px rgba(66, 209, 122, 0.8);
+}
+
+.полоска.ждём .полоска-точка,
+.полоска.уходим .полоска-точка {
+  background: var(--основной);
+  box-shadow: 0 0 10px rgba(47, 129, 247, 0.8);
+  animation: мигать 0.8s ease-in-out infinite;
+}
+
+.полоска-стрелка {
+  color: var(--тусклый);
+  font-size: 11px;
+}
+
+@keyframes выехать {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ===== подключение: оранжевый вместо синего ===== */
+.круг.ждём {
+  color: #ff9a2e;
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.62),
+    0 5px 0 #070a0e,
+    inset 0 2px 1px rgba(255, 255, 255, 0.16),
+    inset 0 -10px 20px rgba(0, 0, 0, 0.55),
+    0 0 0 2px #ff9a2e,
+    0 0 40px rgba(255, 154, 46, 0.42);
+}
+
+.состояние.ждём {
+  color: #ff9a2e;
+}
+
+.полоска.ждём .полоска-точка {
+  background: #ff9a2e;
+  box-shadow: 0 0 10px rgba(255, 154, 46, 0.8);
+}
+
+.беда.внизу {
+  position: fixed;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+}
+
+.беда {
+  white-space: pre-line;
+}

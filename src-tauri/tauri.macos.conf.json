@@ -1,0 +1,15 @@
+{
+  "bundle": {
+    "targets": [
+      "app"
+    ],
+    "resources": {
+      "resources-macos/xray": "resources/xray",
+      "resources-macos/geoip.dat": "resources/geoip.dat",
+      "resources-macos/geosite.dat": "resources/geosite.dat"
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    }
+  }
+}

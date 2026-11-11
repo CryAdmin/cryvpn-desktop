@@ -1,0 +1,577 @@
+//! Разговор с кабинетом CryVPN.
+//!
+//! Почему запросы идут отсюда, а не из окна: сервер пускает только
+//! `https://cryvps.com` и локальный адрес разработки. У окна приложения
+//! источник другой, и браузерный запрос из него сервер отклонит. Из
+//! нативной части таких ограничений нет вовсе — это не браузер.
+//!
+//! Куки держим сами: вход выдаёт refresh-куку, без неё продлить сессию
+//! нельзя и человек будет вводить код с почты каждый запуск.
+
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+const БАЗА: &str = "https://api.cryvps.com/api/v2";
+
+/// Чем приложение представляется серверу. Видно в списке сессий кабинета,
+/// поэтому пишем честно: человек должен отличать свой компьютер от браузера.
+#[cfg(target_os = "macos")]
+const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-macOS/", env!("CARGO_PKG_VERSION"));
+#[cfg(not(target_os = "macos"))]
+const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-Windows/", env!("CARGO_PKG_VERSION"));
+
+/// Клиент живёт всё время работы приложения: в нём хранилище кук.
+pub struct Кабинет {
+    http: reqwest::Client,
+    /// Токен доступа держим только в памяти. На диск не кладём: украденный
+    /// файл не должен давать вход в чужой кабинет.
+    pub токен: Arc<tokio::sync::Mutex<Option<String>>>,
+    /// Конфигурации серверов из подписки. Тоже только в памяти: по ним
+    /// открывается доступ к VPN, на диске им делать нечего.
+    pub подписка: Arc<tokio::sync::Mutex<Vec<Value>>>,
+}
+
+/// Всё, что Ремна сообщает вместе с подписκой: серверы, как часто
+/// обновляться, объявление владельца и остаток трафика.
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Подписка {
+    pub серверы: Vec<Сервер>,
+    /// Часы между обновлениями. Значение берём у панели, а не выдумываем:
+    /// владелец меняет его там и ожидает, что клиенты послушаются.
+    pub интервал_часов: u32,
+    pub объявление: String,
+    pub объявление_ссылка: String,
+    /// Сайт владельца из заголовка `profile-web-page-url`.
+    pub сайт: String,
+    pub потрачено: u64,
+    pub всего: u64,
+    /// Когда кончается подписка, секунды эпохи; 0 — панель не сказала.
+    pub истекает: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Сервер {
+    pub номер: usize,
+    pub имя: String,
+    /// Заглушка панели: адрес `0.0.0.0`, порт 1. Показывать такое человеку
+    /// как рабочий сервер нельзя — он будет жать «подключить» впустую.
+    pub поддельный: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Ответ {
+    pub ok: bool,
+    /// Что показать человеку. Сообщения сервера уже написаны по-русски
+    /// и для людей, поэтому передаём их как есть.
+    pub сообщение: String,
+}
+
+impl Кабинет {
+    pub fn новый() -> Result<Self, String> {
+        let http = reqwest::Client::builder()
+            .user_agent(ПРЕДСТАВЛЕНИЕ)
+            .cookie_store(true)
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .map_err(|e| format!("не удалось создать http-клиент: {e}"))?;
+        Ok(Self {
+            http,
+            токен: Arc::new(tokio::sync::Mutex::new(None)),
+            подписка: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+        })
+    }
+
+    async fn почтой(&self, путь: &str, тело: Value) -> Result<(u16, Value), String> {
+        let ответ = self
+            .http
+            .post(format!("{БАЗА}{путь}"))
+            .json(&тело)
+            .send()
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    "Сервер не ответил. Проверьте интернет".to_string()
+                } else {
+                    format!("Нет связи с сервером: {e}")
+                }
+            })?;
+
+        let код = ответ.status().as_u16();
+        // Вход и продление возвращают refresh-куку. Запоминаем её сразу здесь:
+        // иначе при следующем запуске придётся снова просить код на почту,
+        // а число писем с кодом на один адрес ограничено.
+        запомнить_куку(ответ.headers());
+        let текст = ответ.text().await.unwrap_or_default();
+
+        // Если перед API однажды встанет проверка антиддоса, сюда придёт html.
+        // Тогда лучше честно сказать, чем молча показать «неверный код».
+        if текст.trim_start().starts_with('<') {
+            return Err("Сервер вернул страницу проверки вместо ответа".into());
+        }
+
+        let данные: Value = serde_json::from_str(&текст).unwrap_or(json!({}));
+        Ok((код, данные))
+    }
+
+    /// Шаг первый: просим выслать код на почту.
+    pub async fn выслать_код(&self, почта: &str) -> Ответ {
+        match self.почтой("/auth/web/send_code", json!({ "email": почта })).await {
+            Err(беда) => Ответ { ok: false, сообщение: беда },
+            Ok((код, данные)) => match код {
+                200 => Ответ { ok: true, сообщение: "Код отправлен на почту".into() },
+                429 => Ответ {
+                    ok: false,
+                    сообщение: "Подождите перед повторным запросом кода".into(),
+                },
+                _ => Ответ {
+                    ok: false,
+                    сообщение: сообщение_сервера(&данные)
+                        .unwrap_or_else(|| "Не удалось отправить код".into()),
+                },
+            },
+        }
+    }
+
+    /// Шаг второй: меняем код из письма на токен доступа.
+    pub async fn проверить_код(&self, почта: &str, код_из_письма: &str) -> Ответ {
+        match self
+            .почтой(
+                "/auth/web/verify_code",
+                json!({ "email": почта, "code": код_из_письма }),
+            )
+            .await
+        {
+            Err(беда) => Ответ { ok: false, сообщение: беда },
+            Ok((код, данные)) => {
+                if код == 200 {
+                    if let Some(токен) = данные.get("access_token").and_then(|t| t.as_str()) {
+                        *self.токен.lock().await = Some(токен.to_string());
+                        return Ответ { ok: true, сообщение: "Вход выполнен".into() };
+                    }
+                    return Ответ {
+                        ok: false,
+                        сообщение: "Сервер не вернул токен входа".into(),
+                    };
+                }
+                Ответ {
+                    ok: false,
+                    сообщение: сообщение_сервера(&данные)
+                        .unwrap_or_else(|| "Неверный код".into()),
+                }
+            }
+        }
+    }
+
+    /// Всё о человеке: подписка, серверы, устройства, срок.
+    pub async fn профиль(&self) -> Result<Value, String> {
+        // Токен доступа живёт недолго, сессия — три месяца. Если токен
+        // истёк, продлеваем его сами и повторяем запрос. Раньше приложение
+        // в этом месте говорило «войдите заново», хотя вход был жив.
+        for попытка in 0..2 {
+            let токен = self
+                .токен
+                .lock()
+                .await
+                .clone()
+                .ok_or_else(|| "Вход не выполнен".to_string())?;
+
+            let ответ = self
+                .http
+                .post(format!("{БАЗА}/get/me"))
+                .bearer_auth(токен)
+                .send()
+                .await
+                .map_err(|e| format!("Нет связи с сервером: {e}"))?;
+
+            if ответ.status() == 401 {
+                if попытка == 0 && self.восстановить().await {
+                    continue;
+                }
+                *self.токен.lock().await = None;
+                return Err("Сессия истекла, войдите заново".into());
+            }
+            if !ответ.status().is_success() {
+                return Err(format!("Сервер ответил {}", ответ.status().as_u16()));
+            }
+
+            return ответ
+                .json::<Value>()
+                .await
+                .map_err(|e| format!("Не разобрать ответ сервера: {e}"));
+        }
+        Err("Сессия истекла, войдите заново".into())
+    }
+
+    /// Серверы берём из подписки Ремны, а не из профиля: поле `connections`
+    /// у кабинета пустое, настоящие узлы живут только в подписке.
+    ///
+    /// Без заголовка `x-hwid` панель отдаёт заглушку с одним выдуманным
+    /// сервером `0.0.0.0:1` и надписью «Переустанови приложение!» — проверено
+    /// на живой подписке 11.11.2026. Поэтому представляемся устройством.
+    pub async fn серверы(&self, ссылка: &str) -> Result<Подписка, String> {
+        let (ос, версия, модель) = crate::device::описание();
+
+        let ответ = self
+            .http
+            .get(format!("{}/json", ссылка.trim_end_matches('/')))
+            .header("x-hwid", crate::device::номер())
+            .header("x-device-os", ос)
+            .header("x-ver-os", версия)
+            .header("x-device-model", модель)
+            .send()
+            .await
+            .map_err(|e| format!("Не удалось получить подписку: {e}"))?;
+
+        let заголовки = ответ.headers().clone();
+        if заголовки.get("x-hwid-max-devices-reached").is_some() {
+            return Err("Достигнут предел устройств. Отключите лишнее в кабинете".into());
+        }
+        if ответ.status() == 404 {
+            return Err("Подписка не найдена или устройство не принято панелью".into());
+        }
+        if !ответ.status().is_success() {
+            return Err(format!("Панель ответила {}", ответ.status().as_u16()));
+        }
+
+        let данные: Value = ответ
+            .json()
+            .await
+            .map_err(|e| format!("Не разобрать подписку: {e}"))?;
+
+        let список = данные.as_array().cloned().unwrap_or_default();
+        let серверы: Vec<Сервер> = список
+            .iter()
+            .enumerate()
+            .map(|(номер, конфиг)| Сервер {
+                номер,
+                имя: конфиг
+                    .get("remarks")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Без названия")
+                    .to_string(),
+                поддельный: поддельный(конфиг),
+            })
+            .collect();
+
+        // Конфигурации держим у себя: по ним потом будет подниматься туннель.
+        *self.подписка.lock().await = список;
+
+        if серверы.iter().all(|с| с.поддельный) {
+            return Err(
+                "Панель не приняла это устройство: настоящих серверов в подписке нет".into(),
+            );
+        }
+
+        let (потрачено, всего, истекает) = разобрать_трафик(&заголовки);
+        Ok(Подписка {
+            серверы,
+            интервал_часов: заголовок(&заголовки, "profile-update-interval")
+                .and_then(|з| з.parse().ok())
+                .filter(|ч: &u32| *ч > 0)
+                .unwrap_or(1),
+            объявление: заголовок(&заголовки, "announce")
+                .map(|з| раскодировать(&з))
+                .unwrap_or_default(),
+            объявление_ссылка: заголовок(&заголовки, "announce-url").unwrap_or_default(),
+            сайт: заголовок(&заголовки, "profile-web-page-url").unwrap_or_default(),
+            потрачено,
+            всего,
+            истекает,
+        })
+    }
+
+    /// Замер задержки до каждого сервера: время установки TCP-соединения.
+    ///
+    /// Это не «пинг» в строгом смысле, а то, что человеку и нужно знать:
+    /// сколько идёт до сервера по тому же пути, которым пойдёт туннель.
+    /// У конфигураций с несколькими узлами («Авто выбор») берём лучший.
+    /// Не дозвонились — отдаём пусто, а не выдуманное число.
+    pub async fn пинг(&self) -> Vec<Option<u32>> {
+        let подписка = self.подписка.lock().await.clone();
+        let задачи = подписка.into_iter().map(|конфиг| async move {
+            let адреса = адреса_узлов(&конфиг);
+            let замеры = адреса.into_iter().map(|(хост, порт)| async move {
+                замер_узла(&хост, порт).await
+            });
+            let mut лучший: Option<u32> = None;
+            for итог in futures_вместе(замеры).await {
+                if let Some(мс) = итог {
+                    лучший = Some(лучший.map_or(мс, |б| б.min(мс)));
+                }
+            }
+            лучший
+        });
+        futures_вместе(задачи).await
+    }
+
+    /// Возвращаемся в уже начатую сессию, без письма с кодом.
+    ///
+    /// Так же работает сайт: у браузера лежит refresh-кука, и кабинет при
+    /// открытии просто продлевает вход. Без этого приложение просило бы код
+    /// при каждом запуске, а число писем с кодом на адрес ограничено.
+    pub async fn восстановить(&self) -> bool {
+        let Some(кука) = прочитать_сессию() else {
+            return false;
+        };
+
+        let ответ = self
+            .http
+            .post(format!("{БАЗА}/auth/refresh"))
+            .header("Cookie", format!("refresh_token={кука}"))
+            .send()
+            .await;
+
+        let Ok(ответ) = ответ else { return false };
+
+        if ответ.status() != 200 {
+            // 401 здесь — обычное дело: сессия истекла или человек вышел.
+            // Файл убираем, чтобы не стучаться с мёртвой кукой каждый запуск.
+            if ответ.status() == 401 {
+                забыть_сессию();
+            }
+            return false;
+        }
+
+        запомнить_куку(ответ.headers());
+
+        let Ok(данные) = ответ.json::<Value>().await else {
+            return false;
+        };
+        match данные.get("access_token").and_then(|t| t.as_str()) {
+            Some(токен) => {
+                *self.токен.lock().await = Some(токен.to_string());
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Выход. Токен забываем в любом случае — даже если сервер не ответил:
+    /// человек нажал «выйти» и должен увидеть экран входа, а не ошибку.
+    pub async fn выйти(&self) -> Ответ {
+        let токен = self.токен.lock().await.clone();
+        if let Some(токен) = токен {
+            let _ = self
+                .http
+                .post(format!("{БАЗА}/auth/logout"))
+                .bearer_auth(токен)
+                .send()
+                .await;
+        }
+        *self.токен.lock().await = None;
+        self.подписка.lock().await.clear();
+        забыть_сессию();
+        Ответ { ok: true, сообщение: "Вы вышли".into() }
+    }
+}
+
+// Сессия продления — то же самое, что браузер держит в куке: по ней можно
+// продлить вход, пока её не отозвали. Хранится в защищённом хранилище.
+const СЕССИЯ: &str = "session";
+
+fn прочитать_сессию() -> Option<String> {
+    crate::secrets::прочитать(СЕССИЯ)
+}
+
+fn сохранить_сессию(значение: &str) {
+    crate::secrets::сохранить(СЕССИЯ, значение);
+}
+
+fn забыть_сессию() {
+    crate::secrets::забыть(СЕССИЯ);
+}
+
+/// Вытаскиваем refresh-куку из ответа и запоминаем её.
+/// Сервер её вращает: после каждого продления приходит новая, и если
+/// сохранить старую, следующий запуск получит отказ.
+fn запомнить_куку(заголовки: &reqwest::header::HeaderMap) {
+    for значение in заголовки.get_all("set-cookie") {
+        if let Ok(строка) = значение.to_str() {
+            if let Some(хвост) = строка.strip_prefix("refresh_token=") {
+                let токен = хвост.split(';').next().unwrap_or("").trim();
+                if !токен.is_empty() {
+                    сохранить_сессию(токен);
+                }
+            }
+        }
+    }
+}
+
+fn заголовок(заголовки: &reqwest::header::HeaderMap, имя: &str) -> Option<String> {
+    заголовки
+        .get(имя)
+        .and_then(|з| з.to_str().ok())
+        .map(|з| з.trim().to_string())
+        .filter(|з| !з.is_empty())
+}
+
+/// Объявление приходит либо текстом, либо с пометкой «base64:».
+fn раскодировать(значение: &str) -> String {
+    let Some(тело) = значение.strip_prefix("base64:") else {
+        return значение.to_string();
+    };
+    match base64_в_байты(тело) {
+        Some(байты) => String::from_utf8_lossy(&байты).to_string(),
+        None => String::new(),
+    }
+}
+
+/// Маленький разбор base64: тянуть ради одного заголовка целую
+/// библиотеку незачем.
+fn base64_в_байты(вход: &str) -> Option<Vec<u8>> {
+    const АЗБУКА: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut биты: u32 = 0;
+    let mut сколько = 0;
+    let mut итог = Vec::new();
+    for знак in вход.bytes() {
+        if знак == b'=' || знак == b'\n' || знак == b'\r' {
+            continue;
+        }
+        let позиция = АЗБУКА.iter().position(|&э| э == знак)? as u32;
+        биты = (биты << 6) | позиция;
+        сколько += 6;
+        if сколько >= 8 {
+            сколько -= 8;
+            итог.push((биты >> сколько) as u8);
+        }
+    }
+    Some(итог)
+}
+
+/// `subscription-userinfo: upload=0; download=123; total=456; expire=789`
+fn разобрать_трафик(заголовки: &reqwest::header::HeaderMap) -> (u64, u64, u64) {
+    let Some(строка) = заголовок(заголовки, "subscription-userinfo") else {
+        return (0, 0, 0);
+    };
+    let mut истекает = 0u64;
+    let mut вверх = 0u64;
+    let mut вниз = 0u64;
+    let mut всего = 0u64;
+    for кусок in строка.split(';') {
+        let mut части = кусок.trim().splitn(2, '=');
+        let (Some(ключ), Some(значение)) = (части.next(), части.next()) else {
+            continue;
+        };
+        let число = значение.trim().parse::<u64>().unwrap_or(0);
+        match ключ.trim() {
+            "upload" => вверх = число,
+            "download" => вниз = число,
+            "total" => всего = число,
+            "expire" => истекает = число,
+            _ => {}
+        }
+    }
+    (вверх + вниз, всего, истекает)
+}
+
+/// Один узел: сначала узнаём адрес, потом трижды стучимся и берём лучшее.
+///
+/// Почему так. Первый замер раньше включал поиск имени в DNS и «прогрев»
+/// маршрута, поэтому цифры прыгали: раз 40 мс, раз 180. Теперь имя
+/// разрешается отдельно и в счёт не идёт, а из трёх попыток берётся
+/// наименьшая — это и есть настоящая задержка до сервера, остальное шум.
+async fn замер_узла(хост: &str, порт: u16) -> Option<u32> {
+    let предел = std::time::Duration::from_secs(2);
+
+    let адрес = tokio::time::timeout(предел, tokio::net::lookup_host((хост, порт)))
+        .await
+        .ok()?
+        .ok()?
+        .next()?;
+
+    let mut лучший: Option<u32> = None;
+    for _ in 0..3 {
+        let начало = std::time::Instant::now();
+        if let Ok(Ok(_)) =
+            tokio::time::timeout(предел, tokio::net::TcpStream::connect(адрес)).await
+        {
+            let мс = начало.elapsed().as_millis() as u32;
+            лучший = Some(лучший.map_or(мс, |б| б.min(мс)));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+    }
+    лучший
+}
+
+/// Запускаем несколько замеров одновременно и ждём всех.
+/// Ради этого не тянем отдельную библиотеку: хватает задач tokio.
+async fn futures_вместе<Ф, Т>(набор: impl IntoIterator<Item = Ф>) -> Vec<Т>
+where
+    Ф: std::future::Future<Output = Т> + Send + 'static,
+    Т: Send + 'static,
+{
+    let ручки: Vec<_> = набор.into_iter().map(tokio::spawn).collect();
+    let mut итоги = Vec::with_capacity(ручки.len());
+    for ручка in ручки {
+        if let Ok(итог) = ручка.await {
+            итоги.push(итог);
+        }
+    }
+    итоги
+}
+
+/// Куда на самом деле стучится конфигурация: адреса и порты узлов.
+fn адреса_узлов(конфиг: &Value) -> Vec<(String, u16)> {
+    let mut найдено = Vec::new();
+    for узел in конфиг.get("outbounds").and_then(|о| о.as_array()).into_iter().flatten() {
+        let настройки = узел.get("settings");
+        for ключ in ["vnext", "servers"] {
+            for запись in настройки
+                .and_then(|н| н.get(ключ))
+                .and_then(|в| в.as_array())
+                .into_iter()
+                .flatten()
+            {
+                let хост = запись.get("address").and_then(|а| а.as_str()).unwrap_or("");
+                let порт = запись.get("port").and_then(|п| п.as_u64()).unwrap_or(0) as u16;
+                if !хост.is_empty() && хост != "0.0.0.0" && порт > 0 {
+                    найдено.push((хост.to_string(), порт));
+                }
+            }
+        }
+    }
+    найдено.sort();
+    найдено.dedup();
+    // У «Авто выбора» узлов десятки: всех не обзваниваем, хватит первых.
+    найдено.truncate(8);
+    найдено
+}
+
+/// Узнаём заглушку панели: она всегда указывает на `0.0.0.0`.
+fn поддельный(конфиг: &Value) -> bool {
+    конфиг
+        .get("outbounds")
+        .and_then(|o| o.as_array())
+        .map(|список| {
+            !список.iter().any(|узел| {
+                узел
+                    .get("settings")
+                    .and_then(|н| н.get("vnext"))
+                    .and_then(|v| v.as_array())
+                    .map(|адреса| {
+                        адреса.iter().any(|а| {
+                            !matches!(
+                                а.get("address").and_then(|x| x.as_str()),
+                                None | Some("0.0.0.0") | Some("")
+                            )
+                        })
+                    })
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(true)
+}
+
+/// FastAPI кладёт текст ошибки в `detail`, а часть ручек — в `message`.
+fn сообщение_сервера(данные: &Value) -> Option<String> {
+    for ключ in ["detail", "message"] {
+        if let Some(текст) = данные.get(ключ).and_then(|v| v.as_str()) {
+            if !текст.is_empty() {
+                return Some(текст.to_string());
+            }
+        }
+    }
+    None
+}
