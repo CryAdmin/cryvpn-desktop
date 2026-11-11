@@ -128,6 +128,10 @@ CryVPN — клиент платного сервиса, и без обраще�
 Free code signing provided by [SignPath.io](https://about.signpath.io),
 certificate by [SignPath Foundation](https://signpath.org).
 
+Заявка в SignPath Foundation находится на рассмотрении. Пока она не
+одобрена, выпуски не подписаны, и Windows показывает при установке
+предупреждение о неизвестном издателе.
+
 - Committers and reviewers: [CryAdmin](https://github.com/CryAdmin)
 - Approvers: [CryAdmin](https://github.com/CryAdmin)
 
