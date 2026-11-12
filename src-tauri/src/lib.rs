@@ -177,8 +177,10 @@ async fn пинг(
 /// Номер новой версии, если она вышла.
 #[tauri::command]
 async fn обновление() -> Result<Option<String>, String> {
-    // Обновление одной кнопкой есть только в Windows.
-    if !cfg!(windows) {
+    // Windows обновляется сама, одной кнопкой. Android о новой версии
+    // только сообщает и отдаёт человеку свежий APK — ставит его система.
+    // На Mac приложение не распространяется, проверять нечего.
+    if !cfg!(any(windows, target_os = "android")) {
         return Ok(None);
     }
     Ok(update::проверить().await)
