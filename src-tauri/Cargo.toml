@@ -1,6 +1,6 @@
 [package]
 name = "cryvpn"
-version = "0.1.11"
+version = "0.1.12"
 description = "CryVPN desktop client"
 authors = ["CryVPN"]
 license = "GPL-3.0-only"
