@@ -108,6 +108,7 @@ jobs:
       # Без него (например, в запросе на слияние из чужой копии) APK
       # собирается неподписанным — проверить сборку можно, установить нельзя.
       - name: Ключ подписи
+        id: key
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -115,6 +116,7 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
             printf 'storeFile=%s\nkeyAlias=cryvpn\npassword=%s\n' "$RUNNER_TEMP/release.jks" "$KEYSTORE_PASSWORD" > src-tauri/gen/android/keystore.properties
+            echo "signed=true" >> "$GITHUB_OUTPUT"
           else
             echo "Ключа нет — сборка без подписи"
           fi
@@ -135,8 +137,9 @@ jobs:
           name: CryVPN-Android
           path: out/
 
+      # Неподписанный APK в выпуск не идёт: установить его нельзя.
       - name: Публикация в Releases
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && steps.key.outputs.signed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           body_path: .github/release-notes.md
