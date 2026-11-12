@@ -946,7 +946,6 @@ body {
     linear-gradient(160deg, #252e3c 0%, #121720 58%, #0b0f15 100%);
   box-shadow:
     0 22px 44px rgba(0, 0, 0, 0.62),
-    0 5px 0 #070a0e,
     inset 0 2px 1px rgba(255, 255, 255, 0.16),
     inset 0 -10px 20px rgba(0, 0, 0, 0.55),
     0 0 0 2px #2a3443;
@@ -961,7 +960,6 @@ body {
   transform: translateY(4px) scale(0.985);
   box-shadow:
     0 8px 18px rgba(0, 0, 0, 0.6),
-    0 1px 0 #070a0e,
     inset 0 6px 16px rgba(0, 0, 0, 0.6),
     0 0 0 2px #2a3443;
 }
@@ -969,7 +967,6 @@ body {
 .круг.вкл {
   box-shadow:
     0 22px 48px rgba(0, 0, 0, 0.6),
-    0 5px 0 #06140c,
     inset 0 2px 1px rgba(255, 255, 255, 0.2),
     inset 0 -10px 22px rgba(0, 0, 0, 0.5),
     0 0 0 2px var(--удача),
@@ -979,7 +976,6 @@ body {
 .круг.ждём {
   box-shadow:
     0 22px 44px rgba(0, 0, 0, 0.62),
-    0 5px 0 #070a0e,
     inset 0 2px 1px rgba(255, 255, 255, 0.16),
     inset 0 -10px 20px rgba(0, 0, 0, 0.55),
     0 0 0 2px var(--основной),
@@ -1023,7 +1019,6 @@ body {
   background: linear-gradient(180deg, #1b222d 0%, #131820 100%);
   border-color: #263142;
   box-shadow:
-    0 3px 0 #0a0d12,
     0 8px 18px rgba(0, 0, 0, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
@@ -1031,7 +1026,6 @@ body {
 .сервер:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 5px 0 #0a0d12,
     0 14px 26px rgba(0, 0, 0, 0.42),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
@@ -1039,14 +1033,12 @@ body {
 .сервер:active {
   transform: translateY(2px);
   box-shadow:
-    0 1px 0 #0a0d12,
     inset 0 3px 8px rgba(0, 0, 0, 0.45);
 }
 
 .сервер.выбран {
   background: linear-gradient(180deg, #1c2c22 0%, #142019 100%);
   box-shadow:
-    0 3px 0 #08130c,
     0 10px 24px rgba(66, 209, 122, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
@@ -1059,7 +1051,6 @@ body {
 .окошко,
 .весть {
   box-shadow:
-    0 3px 0 #0a0d12,
     0 10px 22px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
@@ -1175,7 +1166,6 @@ body {
   color: #ee5148;
   box-shadow:
     0 22px 44px rgba(0, 0, 0, 0.62),
-    0 5px 0 #070a0e,
     inset 0 2px 1px rgba(255, 255, 255, 0.16),
     inset 0 -10px 20px rgba(0, 0, 0, 0.55),
     0 0 0 2px #5a2623,
@@ -1412,7 +1402,6 @@ body {
   color: #ff9a2e;
   box-shadow:
     0 22px 44px rgba(0, 0, 0, 0.62),
-    0 5px 0 #070a0e,
     inset 0 2px 1px rgba(255, 255, 255, 0.16),
     inset 0 -10px 20px rgba(0, 0, 0, 0.55),
     0 0 0 2px #ff9a2e,
@@ -1578,4 +1567,11 @@ html.телефон body {
   flex: none;
   max-height: none;
   overflow: visible;
+}
+
+
+/* Под кнопкой больше нет жёсткой «подставки»: на телефоне она читалась
+   как срезанный низ. Тени нужно место, чтобы её не перекрывала подпись. */
+.пульт {
+  padding-bottom: 10px;
 }
