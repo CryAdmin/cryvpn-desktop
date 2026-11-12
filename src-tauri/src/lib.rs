@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+mod android;
 mod api;
 mod core;
 mod device;
@@ -38,6 +40,7 @@ fn принять_ссылку(приложение: &tauri::AppHandle, сыра
     }
     let _ = приложение.emit("ссылка", ());
     if let Some(окно) = приложение.get_webview_window("main") {
+        #[cfg(desktop)]
         let _ = окно.unminimize();
         let _ = окно.set_focus();
     }
@@ -136,6 +139,10 @@ async fn пинг(
 /// Номер новой версии, если она вышла.
 #[tauri::command]
 async fn обновление() -> Result<Option<String>, String> {
+    // Обновление одной кнопкой есть только в Windows.
+    if !cfg!(windows) {
+        return Ok(None);
+    }
     Ok(update::проверить().await)
 }
 
@@ -248,7 +255,11 @@ async fn выйти(кабинет: State<'_, Кабинет>, связь: State
 pub fn run() {
     let кабинет = Кабинет::новый().expect("не удалось поднять http-клиент");
 
-    tauri::Builder::default()
+    let сборщик = tauri::Builder::default();
+    #[cfg(target_os = "android")]
+    let сборщик = сборщик.plugin(android::init());
+    #[cfg(desktop)]
+    let сборщик = сборщик
         // Вторая копия приложения не нужна: она передаёт первой то, с чем
         // её запустили (ссылку cryvpn://), и закрывается. Этот модуль
         // обязан стоять первым.
@@ -257,7 +268,8 @@ pub fn run() {
                 let _ = окно.unminimize();
                 let _ = окно.set_focus();
             }
-        }))
+        }));
+    сборщик
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .manage(кабинет)
@@ -292,6 +304,11 @@ pub fn run() {
             }
 
             // Ядро, драйвер и базы geoip лежат в установке приложения.
+            #[cfg(target_os = "android")]
+            let ресурсы = paths::папка_данных()
+                .map(|п| п.join("assets"))
+                .unwrap_or_else(|| std::path::PathBuf::from("assets"));
+            #[cfg(not(target_os = "android"))]
             let ресурсы = приложение
                 .path()
                 .resource_dir()

@@ -62,7 +62,18 @@ pub fn номер() -> String {
     запасной()
 }
 
-#[cfg(all(not(windows), not(target_os = "macos")))]
+/// Android: номер, который система выдаёт приложению. Он один на
+/// устройство и ключ подписи приложения, переустановку переживает.
+#[cfg(target_os = "android")]
+pub fn номер() -> String {
+    let очищено = пригодный(&crate::android::сведения().id);
+    if очищено.len() >= 10 {
+        return format!("android-{очищено}").chars().take(64).collect();
+    }
+    запасной()
+}
+
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "android")))]
 pub fn номер() -> String {
     запасной()
 }
@@ -127,7 +138,12 @@ pub fn описание() -> (String, String, String) {
             .unwrap_or_else(|| "unknown".into());
         return ("macOS".to_string(), версия, имя_компьютера());
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "android")]
+    {
+        let с = crate::android::сведения();
+        return ("Android".to_string(), с.release, с.model);
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_os = "android")))]
     {
         let ос = if cfg!(windows) { "Windows" } else { "Desktop" };
         let версия = std::env::var("OS").unwrap_or_else(|_| "unknown".into());

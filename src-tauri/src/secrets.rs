@@ -8,6 +8,8 @@
 //!          Файл, скопированный на другую машину или открытый другим
 //!          пользователем, не расшифруется.
 //! macOS:   кладём в Связку ключей; в файле только пометка, где искать.
+//! Android: шифруем ключом из защищённого хранилища устройства; ключ из
+//!          него не извлекается, файл без телефона не расшифровать.
 
 fn файл(имя: &str) -> Option<std::path::PathBuf> {
     Some(crate::paths::папка_данных()?.join(format!("{имя}.dat")))
@@ -119,12 +121,24 @@ fn открыть(имя: &str, закрытое: &str) -> Option<String> {
 
 // ----------------------------------------------------------------- прочее
 
-#[cfg(all(not(windows), not(target_os = "macos")))]
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "android")))]
 fn закрыть(_имя: &str, _открытое: &str) -> Option<String> {
     None
 }
 
-#[cfg(all(not(windows), not(target_os = "macos")))]
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "android")))]
 fn открыть(_имя: &str, _закрытое: &str) -> Option<String> {
     None
+}
+
+// ---------------------------------------------------------------- Android
+
+#[cfg(target_os = "android")]
+fn закрыть(_имя: &str, открытое: &str) -> Option<String> {
+    crate::android::запечатать(открытое)
+}
+
+#[cfg(target_os = "android")]
+fn открыть(_имя: &str, закрытое: &str) -> Option<String> {
+    crate::android::распечатать(закрытое)
 }

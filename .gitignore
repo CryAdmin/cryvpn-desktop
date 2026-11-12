@@ -21,3 +21,9 @@ src-tauri/resources-macos/
 CLAUDE.md
 .claude/
 scripts/release.env
+
+# ядро и базы для Android: чужие бинарники, в гит не кладём.
+# Собираются скриптом scripts/resources-android.sh
+src-tauri/gen/android/app/src/main/jniLibs/
+src-tauri/gen/android/app/src/main/assets/geoip.dat
+src-tauri/gen/android/app/src/main/assets/geosite.dat

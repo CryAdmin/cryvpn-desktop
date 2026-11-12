@@ -25,7 +25,9 @@ const ПОРТ_УЧЁТА: u16 = 10853;
 
 #[cfg(windows)]
 const ИМЯ_ЯДРА: &str = "xray.exe";
-#[cfg(not(windows))]
+#[cfg(target_os = "android")]
+const ИМЯ_ЯДРА: &str = "libxray.so";
+#[cfg(all(not(windows), not(target_os = "android")))]
 const ИМЯ_ЯДРА: &str = "xray";
 
 /// Как зовётся туннельный адаптер. macOS принимает только имена вида
@@ -78,7 +80,28 @@ impl Туннель {
         Self { процесс: None, внешний: false, уборка: None, движок: Движок::default(), ресурсы }
     }
 
+    /// Где лежит ядро. На Android — в папке библиотек приложения:
+    /// только оттуда система разрешает запускать программы.
+    fn путь_ядра(&self) -> PathBuf {
+        #[cfg(target_os = "android")]
+        {
+            crate::android::ядро()
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            self.ресурсы.join(ИМЯ_ЯДРА)
+        }
+    }
+
     pub fn включён(&mut self) -> bool {
+        // Android: VPN могли выключить в настройках системы, кнопкой в
+        // уведомлении или включением другого VPN. Служба тогда стирает
+        // отметку — по её пропаже гасим ядро.
+        #[cfg(target_os = "android")]
+        if self.процесс.is_some() && !отметка().is_some_and(|п| п.exists()) {
+            self.выключить();
+            return false;
+        }
         if self.внешний {
             return порт_жив(ПОРТ_УЧЁТА);
         }
@@ -94,7 +117,7 @@ impl Туннель {
         // не дождаться её конца, она снесла бы маршруты уже нового туннеля.
         self.дождаться_уборки();
 
-        let ядро = self.ресурсы.join(ИМЯ_ЯДРА);
+        let ядро = self.путь_ядра();
         if !ядро.exists() {
             return Err("В установке нет ядра — переустановите приложение".into());
         }
@@ -136,7 +159,20 @@ impl Туннель {
             }
             self.внешний = true;
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "android")]
+        {
+            let итог = запустить_на_android(&ядро, &путь_конфига, &журнал, &self.ресурсы).await;
+            match итог {
+                Ok(дитя) => self.процесс = Some(дитя),
+                Err(беда) => {
+                    отметка_снять();
+                    crate::android::опустить();
+                    let _ = std::fs::remove_file(&путь_конфига);
+                    return Err(беда);
+                }
+            }
+        }
+        #[cfg(all(not(target_os = "macos"), not(target_os = "android")))]
         {
             let дитя = запустить(&ядро, &путь_конфига, &журнал, &self.ресурсы)?;
             self.процесс = Some(дитя);
@@ -175,6 +211,10 @@ impl Туннель {
             let _ = дитя.wait();
         }
         отметка_снять();
+        #[cfg(target_os = "android")]
+        if был_запущен {
+            crate::android::опустить();
+        }
         if self.внешний {
             // Отметка снята — оболочка с правами сама гасит ядро. Ждём,
             // пока оно действительно уйдёт, чтобы следующее подключение
@@ -217,7 +257,7 @@ impl Туннель {
 
     /// Сколько прошло через туннель за всё подключение.
     pub fn счётчики(&self) -> Счётчики {
-        let ядро = self.ресурсы.join(ИМЯ_ЯДРА);
+        let ядро = self.путь_ядра();
         let Ok(вывод) = запрос_учёта(&ядро) else {
             return Счётчики::default();
         };
@@ -312,6 +352,16 @@ fn собрать_конфиг(исходный: &Value) -> Value {
         "dnsLog": false
     });
 
+    // Android: туннель и маршруты выдаёт системная служба VPN, ядру их
+    // трогать нечем и незачем. Свои соединения ядра из туннеля исключены
+    // самой системой — приложение стоит в списке «мимо VPN».
+    #[cfg(target_os = "android")]
+    if let Some(настройки) = конфиг["inbounds"][0]["settings"].as_object_mut() {
+        настройки.remove("autoSystemRoutingTable");
+        настройки.remove("autoOutboundsInterface");
+        настройки.remove("dns");
+    }
+
     конфиг["stats"] = json!({});
     конфиг["api"] = json!({ "tag": "api", "services": ["StatsService"] });
     конфиг["policy"] = json!({
@@ -359,7 +409,43 @@ fn запустить(
         .map_err(|e| format!("не удалось запустить ядро: {e}"))
 }
 
-#[cfg(all(not(windows), not(target_os = "macos")))]
+/// Android: туннель выдаёт системная служба, ядро получает его номер.
+///
+/// Номер передаётся дочернему процессу по наследству, поэтому снимаем с
+/// него запрет на наследование. После запуска свой экземпляр закрываем:
+/// туннель должен жить ровно столько, сколько живёт ядро.
+#[cfg(target_os = "android")]
+async fn запустить_на_android(
+    ядро: &PathBuf,
+    конфиг: &PathBuf,
+    журнал: &PathBuf,
+    ресурсы: &PathBuf,
+) -> Result<Child, String> {
+    crate::android::подготовить_базы(ресурсы).await?;
+    let отметка = отметка().ok_or_else(|| "не найдена папка данных приложения".to_string())?;
+    let туннель = crate::android::поднять(&отметка).await?;
+
+    let запуск = (|| {
+        if unsafe { libc::fcntl(туннель, libc::F_SETFD, 0) } != 0 {
+            return Err("не удалось передать туннель ядру".to_string());
+        }
+        let файл = std::fs::File::create(журнал).map_err(|e| e.to_string())?;
+        let ошибки = файл.try_clone().map_err(|e| e.to_string())?;
+        Command::new(ядро)
+            .env("XRAY_LOCATION_ASSET", ресурсы)
+            .env("XRAY_TUN_FD", туннель.to_string())
+            .args(["-c", &конфиг.display().to_string()])
+            .stdin(std::process::Stdio::null())
+            .stdout(файл)
+            .stderr(ошибки)
+            .spawn()
+            .map_err(|e| format!("не удалось запустить ядро: {e}"))
+    })();
+    unsafe { libc::close(туннель) };
+    запуск
+}
+
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "android")))]
 fn запустить(
     ядро: &PathBuf,
     конфиг: &PathBuf,
