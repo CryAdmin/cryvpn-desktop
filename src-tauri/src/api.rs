@@ -397,14 +397,16 @@ impl Кабинет {
         // У подписки два адреса на разных серверах. Там, где провайдер не
         // пускает к основному, второй остаётся доступен — пробуем оба.
         let адреса = адреса_подписки(ссылка);
-        let mut ответ = None;
+        // Отказ панели (не тот статус, предел устройств) — его разберём ниже.
+        let mut отказ: Option<reqwest::Response> = None;
+        let mut готово: Option<(reqwest::header::HeaderMap, Value)> = None;
         let mut беда = String::new();
         'попытки: for попытка in 0..3 {
             if попытка > 0 {
                 tokio::time::sleep(std::time::Duration::from_millis(800)).await;
             }
             for адрес in &адреса {
-                match self
+                let о = match self
                     .http
                     .get(format!("{адрес}/json"))
                     .header("x-hwid", crate::device::номер())
@@ -414,42 +416,66 @@ impl Кабинет {
                     .send()
                     .await
                 {
-                    // Прокладка перед панелью не достучалась до неё —
-                    // спросим через другой адрес, а этот ответ придержим.
-                    Ok(о) if matches!(о.status().as_u16(), 502..=504) => ответ = Some(о),
-                    Ok(о) => {
-                        ответ = Some(о);
-                        break 'попытки;
-                    }
+                    Ok(о) => о,
                     Err(e) => {
                         беда = расшифровать_ошибку(e);
+                        записать_ошибку("подписка", &беда);
+                        continue;
+                    }
+                };
+                // Прокладка перед панелью не достучалась до неё —
+                // спросим через другой адрес, а этот ответ придержим.
+                if matches!(о.status().as_u16(), 502..=504) {
+                    отказ = Some(о);
+                    continue;
+                }
+                if !о.status().is_success()
+                    || о.headers().get("x-hwid-max-devices-reached").is_some()
+                {
+                    отказ = Some(о);
+                    break 'попытки;
+                }
+                // Заголовки пришли — это ещё не весь ответ. На слабой или
+                // придушенной связи список серверов обрывается на середине,
+                // а иногда вместо него приходит чужая страница. Раньше это
+                // сразу кончалось ошибкой на экране; теперь это такая же
+                // неудачная попытка, как и несостоявшееся соединение.
+                let заголовки = о.headers().clone();
+                let тело = match о.bytes().await {
+                    Ok(т) => т,
+                    Err(e) => {
+                        беда = format!("ответ оборвался: {}", расшифровать_ошибку(e));
+                        записать_ошибку("подписка", &беда);
+                        continue;
+                    }
+                };
+                match serde_json::from_slice::<Value>(&тело) {
+                    Ok(д) if д.is_array() => {
+                        готово = Some((заголовки, д));
+                        break 'попытки;
+                    }
+                    // Само содержимое в журнал не кладём: в нём могут быть
+                    // ключи серверов.
+                    _ => {
+                        беда = format!("вместо списка серверов пришло другое ({} байт)", тело.len());
                         записать_ошибку("подписка", &беда);
                     }
                 }
             }
-            if ответ.is_some() {
-                break;
+        }
+        let (заголовки, данные) = match (готово, отказ) {
+            (Some(г), _) => г,
+            (None, Some(ответ)) => {
+                if ответ.headers().get("x-hwid-max-devices-reached").is_some() {
+                    return Err("Достигнут предел устройств. Отключите лишнее в кабинете".into());
+                }
+                if ответ.status() == 404 {
+                    return Err("Подписка не найдена или устройство не принято панелью".into());
+                }
+                return Err(format!("Панель ответила {}", ответ.status().as_u16()));
             }
-        }
-        let Some(ответ) = ответ else {
-            return Err(format!("Не удалось получить подписку: {беда}"));
+            (None, None) => return Err(format!("Не удалось получить подписку: {беда}")),
         };
-
-        let заголовки = ответ.headers().clone();
-        if заголовки.get("x-hwid-max-devices-reached").is_some() {
-            return Err("Достигнут предел устройств. Отключите лишнее в кабинете".into());
-        }
-        if ответ.status() == 404 {
-            return Err("Подписка не найдена или устройство не принято панелью".into());
-        }
-        if !ответ.status().is_success() {
-            return Err(format!("Панель ответила {}", ответ.status().as_u16()));
-        }
-
-        let данные: Value = ответ
-            .json()
-            .await
-            .map_err(|e| format!("Не разобрать подписку: {e}"))?;
 
         let список = данные.as_array().cloned().unwrap_or_default();
         let серверы: Vec<Сервер> = список
@@ -981,6 +1007,41 @@ fn сообщение_сервера(данные: &Value) -> Option<String> {
 #[cfg(test)]
 mod проверки_сети {
     use super::*;
+
+    /// Список серверов оборвался на середине, потом вместо него пришла
+    /// чужая страница — и только с третьего раза дошёл целиком. Человек
+    /// должен получить серверы, а не красную надпись.
+    #[tokio::test]
+    async fn оборванная_подписка_запрашивается_снова() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let годный = r#"[{"remarks":"Узел","outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"1.2.3.4","port":443}]}}]}]"#;
+        let ответы = vec![
+            // Обещано 500 байт, пришло двадцать, соединение закрыто.
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 500\r\nConnection: close\r\n\r\n[{\"remarks\":\"Узе".to_string(),
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 13\r\nConnection: close\r\n\r\n<html></html>".to_string(),
+            format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{годный}", годный.len()),
+        ];
+        let слушатель = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let порт = слушатель.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            for ответ in ответы {
+                let (mut связь, _) = слушатель.accept().await.unwrap();
+                let mut запрос = [0u8; 2048];
+                let _ = связь.read(&mut запрос).await;
+                let _ = связь.write_all(ответ.as_bytes()).await;
+                let _ = связь.shutdown().await;
+            }
+        });
+
+        let кабинет = Кабинет::новый().unwrap();
+        let подписка = кабинет
+            .серверы(&format!("http://127.0.0.1:{порт}/проверка"))
+            .await
+            .expect("с третьей попытки список должен дойти");
+        assert_eq!(подписка.серверы.len(), 1);
+        assert_eq!(подписка.серверы[0].имя, "Узел");
+    }
 
     #[test]
     fn узлы_и_имена_tls() {
