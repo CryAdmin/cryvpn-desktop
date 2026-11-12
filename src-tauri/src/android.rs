@@ -111,6 +111,20 @@ pub fn опустить() {
     }
 }
 
+/// Отдаём системе проверенный APK: она покажет окно установки поверх.
+pub async fn установить(пакет: &Path) -> Result<(), String> {
+    мост()?
+        .run_mobile_plugin_async::<serde_json::Value>("install", json!({ "path": пакет }))
+        .await
+        .map(|_| ())
+        .map_err(|e| match e {
+            tauri::plugin::mobile::PluginInvokeError::InvokeRejected(отказ) => {
+                отказ.message.unwrap_or_else(|| "Android не открыл установку".into())
+            }
+            другое => другое.to_string(),
+        })
+}
+
 #[derive(Deserialize)]
 struct Приложения {
     apps: Vec<Приложение>,

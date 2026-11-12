@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Обновление: приложение отдаёт системе скачанный и проверенный APK. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Список приложений со значком запуска: человек выбирает из него,
          кого пустить мимо VPN. Полного доступа ко всем пакетам не просим. -->

@@ -36,6 +36,11 @@ class AssetsArgs {
 }
 
 @InvokeArg
+class InstallArgs {
+  var path: String = ""
+}
+
+@InvokeArg
 class TextArgs {
   var text: String = ""
 }
@@ -110,7 +115,46 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     out.put("model", (Build.MANUFACTURER + " " + Build.MODEL).trim())
     out.put("release", Build.VERSION.RELEASE ?: "")
     out.put("libs", activity.applicationInfo.nativeLibraryDir)
+    // Скачанный в прошлый раз APK уже не нужен: либо он установлен, либо
+    // от установки отказались.
+    File(activity.cacheDir, "update").deleteRecursively()
     invoke.resolve(out)
+  }
+
+  /**
+   * Установка обновления. Файл уже скачан и сверен с контрольной суммой;
+   * наше дело — отдать его системному установщику. Ставит и спрашивает
+   * согласие сама система, обойти это нельзя и не нужно.
+   */
+  @Command
+  fun install(invoke: Invoke) {
+    val args = invoke.parseArgs(InstallArgs::class.java)
+    Thread {
+      try {
+        val source = File(args.path)
+        val dir = File(activity.cacheDir, "update")
+        dir.mkdirs()
+        val apk = File(dir, "CryVPN-Android.apk")
+        source.copyTo(apk, overwrite = true)
+        source.delete()
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+          activity, activity.packageName + ".fileprovider", apk
+        )
+        val intent = Intent(Intent.ACTION_VIEW)
+          .setDataAndType(uri, "application/vnd.android.package-archive")
+          .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        activity.runOnUiThread {
+          try {
+            activity.startActivity(intent)
+            invoke.resolve(JSObject())
+          } catch (e: Exception) {
+            invoke.reject("Android не открыл установку: ${e.message}")
+          }
+        }
+      } catch (e: Exception) {
+        invoke.reject("не удалось подготовить обновление: ${e.message}")
+      }
+    }.start()
   }
 
   /** Базы geoip/geosite лежат внутри APK; ядру нужны обычные файлы. */

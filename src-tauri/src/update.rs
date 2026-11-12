@@ -102,6 +102,59 @@ pub async fn скачать() -> Result<PathBuf, String> {
 /// Скачанный установщик после обновления больше не нужен — убираем.
 pub fn прибрать() {
     let _ = std::fs::remove_dir_all(std::env::temp_dir().join("CryVPN-update"));
+    if let Some(папка) = crate::paths::папка_данных() {
+        let _ = std::fs::remove_dir_all(папка.join("update"));
+    }
+}
+
+const ПАКЕТ_ANDROID: &str = "CryVPN-Android.apk";
+
+/// Android: качаем свежий APK и сверяем с контрольной суммой из того же
+/// выпуска. Ставит его не приложение, а система — мы только отдаём ей
+/// проверенный файл.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub async fn скачать_apk() -> Result<PathBuf, String> {
+    let свежая = описание().await?;
+    if !новее(&свежая.version, env!("CARGO_PKG_VERSION")) {
+        return Err("У вас уже последняя версия".into());
+    }
+
+    // Файл суммы — одна строка вида «<64 знака>  CryVPN-Android.apk».
+    let запись = клиент(20)?
+        .get(format!("{ИСТОЧНИК}{ПАКЕТ_ANDROID}.sha256"))
+        .send()
+        .await
+        .map_err(|_| "Нет связи с сервером обновлений".to_string())?
+        .text()
+        .await
+        .map_err(|_| "Контрольная сумма не читается".to_string())?;
+    let сумма = запись.split_whitespace().next().unwrap_or("").to_lowercase();
+    if сумма.len() != 64 || !сумма.chars().all(|с| с.is_ascii_hexdigit()) {
+        return Err("Контрольная сумма обновления повреждена".into());
+    }
+
+    let ответ = клиент(600)?
+        .get(format!("{ИСТОЧНИК}{ПАКЕТ_ANDROID}"))
+        .send()
+        .await
+        .map_err(|_| "Не удалось скачать обновление".to_string())?;
+    if !ответ.status().is_success() || ответ.content_length().is_some_and(|д| д > ПОТОЛОК) {
+        return Err("Не удалось скачать обновление".into());
+    }
+    let байты = ответ.bytes().await.map_err(|_| "Загрузка оборвалась".to_string())?;
+    let получилось: String =
+        Sha256::digest(&байты).iter().map(|б| format!("{б:02x}")).collect();
+    if получилось != сумма {
+        return Err("Файл обновления не прошёл проверку, попробуйте ещё раз".into());
+    }
+
+    let папка = crate::paths::папка_данных()
+        .ok_or_else(|| "не найдена папка данных приложения".to_string())?
+        .join("update");
+    std::fs::create_dir_all(&папка).map_err(|e| e.to_string())?;
+    let путь = папка.join(ПАКЕТ_ANDROID);
+    std::fs::write(&путь, &байты).map_err(|e| e.to_string())?;
+    Ok(путь)
 }
 
 /// Запускаем установщик молча; после установки он сам откроет приложение.

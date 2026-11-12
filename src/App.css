@@ -1797,3 +1797,14 @@ body {
 .с-обновой.телефон .экран {
   min-height: 0;
 }
+
+.обнова-телефон.беда {
+  border-bottom-color: rgba(248, 81, 73, 0.4);
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--беда);
+}
+
+.обнова-телефон.беда .обнова-точка {
+  background: var(--беда);
+  animation: none;
+}

@@ -75,9 +75,14 @@ async fn послать(
 
 /// Чем приложение представляется серверу. Видно в списке сессий кабинета,
 /// поэтому пишем честно: человек должен отличать свой компьютер от браузера.
+// Кем приложение называет себя серверу. По этой подписи кабинет и панель
+// показывают устройство в списке — она должна совпадать с системой, иначе
+// телефон выглядит там как компьютер.
 #[cfg(target_os = "macos")]
 const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-macOS/", env!("CARGO_PKG_VERSION"));
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "android")]
+const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-Android/", env!("CARGO_PKG_VERSION"));
+#[cfg(not(any(target_os = "macos", target_os = "android")))]
 const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-Windows/", env!("CARGO_PKG_VERSION"));
 
 /// Клиент живёт всё время работы приложения: в нём хранилище кук.
