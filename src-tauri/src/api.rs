@@ -486,8 +486,8 @@ impl Кабинет {
         let подписка = self.подписка.lock().await.clone();
         let задачи = подписка.into_iter().map(|конфиг| async move {
             let адреса = адреса_узлов(&конфиг);
-            let замеры = адреса.into_iter().map(|(хост, порт)| async move {
-                замер_узла(&хост, порт, мимо).await
+            let замеры = адреса.into_iter().map(|(хост, порт, имя)| async move {
+                замер_узла(&хост, порт, имя.as_deref(), мимо).await
             });
             let mut лучший: Option<u32> = None;
             for итог in futures_вместе(замеры).await {
@@ -679,8 +679,13 @@ fn адреса_подписки(ссылка: &str) -> Vec<String> {
 /// маршрута, поэтому цифры прыгали: раз 40 мс, раз 180. Теперь имя
 /// разрешается отдельно и в счёт не идёт, а из трёх попыток берётся
 /// наименьшая — это и есть настоящая задержка до сервера, остальное шум.
-async fn замер_узла(хост: &str, порт: u16, мимо: Option<std::net::Ipv4Addr>) -> Option<u32> {
-    let предел = std::time::Duration::from_secs(2);
+async fn замер_узла(
+    хост: &str,
+    порт: u16,
+    имя_tls: Option<&str>,
+    мимо: Option<std::net::Ipv4Addr>,
+) -> Option<u32> {
+    let предел = std::time::Duration::from_secs(3);
 
     let адреса: Vec<std::net::SocketAddr> =
         tokio::time::timeout(предел, tokio::net::lookup_host((хост, порт)))
@@ -695,15 +700,106 @@ async fn замер_узла(хост: &str, порт: u16, мимо: Option<std
     };
 
     let mut лучший: Option<u32> = None;
-    for _ in 0..3 {
+    let mut запасной: Option<u32> = None;
+    for _ in 0..2 {
         let начало = std::time::Instant::now();
-        if let Ok(Ok(_)) = tokio::time::timeout(предел, соединиться(адрес, мимо)).await {
-            let мс = начало.elapsed().as_millis() as u32;
-            лучший = Some(лучший.map_or(мс, |б| б.min(мс)));
+        if let Ok(Ok(mut связь)) = tokio::time::timeout(предел, соединиться(адрес, мимо)).await {
+            let на_связь = начало.elapsed().as_millis() as u32;
+            запасной = Some(запасной.map_or(на_связь, |б| б.min(на_связь)));
+            if let Some(имя) = имя_tls {
+                if let Some(мс) = ответ_сервера(&mut связь, имя, предел).await {
+                    лучший = Some(лучший.map_or(мс, |б| б.min(мс)));
+                }
+            }
         }
         tokio::time::sleep(std::time::Duration::from_millis(60)).await;
     }
-    лучший
+    // Сервер без TLS или молчит на приветствие — остаётся время на связь.
+    лучший.or(запасной)
+}
+
+/// Сколько сервер думает над ответом: шлём начало TLS-рукопожатия и ждём
+/// первый байт.
+///
+/// Зачем так. Время установки соединения — плохой градусник: в мобильных
+/// сетях и под чужим VPN соединение принимает узел по дороге, рядом с
+/// телефоном, и замер показывал 10 мс хоть до Канады. Ответ на приветствие
+/// может дать только сам сервер, поэтому здесь задержка настоящая.
+/// Ничего секретного не уходит: приветствие — обычное начало TLS, после
+/// первого байта соединение закрываем.
+async fn ответ_сервера(
+    связь: &mut tokio::net::TcpStream,
+    имя: &str,
+    предел: std::time::Duration,
+) -> Option<u32> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let приветствие = приветствие_tls(имя);
+    let начало = std::time::Instant::now();
+    tokio::time::timeout(предел, связь.write_all(&приветствие)).await.ok()?.ok()?;
+    let mut байт = [0u8; 1];
+    let прочитано = tokio::time::timeout(предел, связь.read(&mut байт)).await.ok()?.ok()?;
+    (прочитано > 0).then(|| начало.elapsed().as_millis() as u32)
+}
+
+/// Собираем TLS ClientHello руками: ради одного пакета тянуть библиотеку
+/// незачем. Вид у него как у обычного браузера — TLS 1.3 и 1.2, имя сервера,
+/// ключ x25519. Случайные поля заполняем чем придётся: до настоящего обмена
+/// ключами дело не дойдёт.
+fn приветствие_tls(имя: &str) -> Vec<u8> {
+    fn поле16(тело: &[u8]) -> Vec<u8> {
+        let mut в = (тело.len() as u16).to_be_bytes().to_vec();
+        в.extend_from_slice(тело);
+        в
+    }
+    fn расширение(вид: u16, тело: &[u8]) -> Vec<u8> {
+        let mut в = вид.to_be_bytes().to_vec();
+        в.extend(поле16(тело));
+        в
+    }
+    let шум = |сколько: usize| -> Vec<u8> {
+        use std::hash::{BuildHasher, Hasher};
+        let mut байты = Vec::with_capacity(сколько);
+        while байты.len() < сколько {
+            let mut х = std::collections::hash_map::RandomState::new().build_hasher();
+            х.write_usize(байты.len());
+            байты.extend_from_slice(&х.finish().to_be_bytes());
+        }
+        байты.truncate(сколько);
+        байты
+    };
+
+    let mut расширения = Vec::new();
+    // имя сервера
+    let mut запись = vec![0u8];
+    запись.extend(поле16(имя.as_bytes()));
+    расширения.extend(расширение(0x0000, &поле16(&запись)));
+    // кривые: x25519, secp256r1
+    расширения.extend(расширение(0x000a, &поле16(&[0x00, 0x1d, 0x00, 0x17])));
+    // подписи
+    расширения.extend(расширение(
+        0x000d,
+        &поле16(&[0x04, 0x03, 0x08, 0x04, 0x04, 0x01, 0x05, 0x03, 0x08, 0x05, 0x05, 0x01, 0x08, 0x06, 0x06, 0x01]),
+    ));
+    // версии: TLS 1.3, TLS 1.2
+    расширения.extend(расширение(0x002b, &[0x04, 0x03, 0x04, 0x03, 0x03]));
+    // обмен ключами: x25519, 32 байта
+    let mut ключ = vec![0x00, 0x1d];
+    ключ.extend(поле16(&шум(32)));
+    расширения.extend(расширение(0x0033, &поле16(&ключ)));
+
+    let mut тело = vec![0x03, 0x03];
+    тело.extend(шум(32));
+    тело.push(32);
+    тело.extend(шум(32));
+    тело.extend(поле16(&[0x13, 0x01, 0x13, 0x02, 0x13, 0x03, 0xc0, 0x2b, 0xc0, 0x2f, 0xc0, 0x2c, 0xc0, 0x30]));
+    тело.extend([0x01, 0x00]);
+    тело.extend(поле16(&расширения));
+
+    let mut рукопожатие = vec![0x01, 0x00];
+    рукопожатие.extend(поле16(&тело));
+    let mut пакет = vec![0x16, 0x03, 0x01];
+    пакет.extend(поле16(&рукопожатие));
+    пакет
 }
 
 /// Соединение с узлом; при заданном `мимо` — с обычного адреса компьютера,
@@ -740,9 +836,19 @@ where
 }
 
 /// Куда на самом деле стучится конфигурация: адреса и порты узлов.
-fn адреса_узлов(конфиг: &Value) -> Vec<(String, u16)> {
+fn адреса_узлов(конфиг: &Value) -> Vec<(String, u16, Option<String>)> {
     let mut найдено = Vec::new();
     for узел in конфиг.get("outbounds").and_then(|о| о.as_array()).into_iter().flatten() {
+        // Имя, которым узел представляется в TLS: по нему шлём приветствие
+        // при замере. Узел без шифрования остаётся без имени.
+        let поток = узел.get("streamSettings");
+        let защита = поток.and_then(|п| п.get("security")).and_then(|з| з.as_str()).unwrap_or("");
+        let имя = ["realitySettings", "tlsSettings"]
+            .iter()
+            .filter_map(|раздел| поток?.get(раздел)?.get("serverName")?.as_str())
+            .find(|и| !и.is_empty())
+            .map(str::to_string);
+
         let настройки = узел.get("settings");
         for ключ in ["vnext", "servers"] {
             for запись in настройки
@@ -754,7 +860,11 @@ fn адреса_узлов(конфиг: &Value) -> Vec<(String, u16)> {
                 let хост = запись.get("address").and_then(|а| а.as_str()).unwrap_or("");
                 let порт = запись.get("port").and_then(|п| п.as_u64()).unwrap_or(0) as u16;
                 if !хост.is_empty() && хост != "0.0.0.0" && порт > 0 {
-                    найдено.push((хост.to_string(), порт));
+                    let имя_tls = match защита {
+                        "tls" | "reality" => имя.clone().or_else(|| Some(хост.to_string())),
+                        _ => None,
+                    };
+                    найдено.push((хост.to_string(), порт, имя_tls));
                 }
             }
         }
@@ -847,6 +957,51 @@ fn сообщение_сервера(данные: &Value) -> Option<String> {
 #[cfg(test)]
 mod проверки_сети {
     use super::*;
+
+    #[test]
+    fn узлы_и_имена_tls() {
+        let конфиг = json!({ "outbounds": [
+            { "protocol": "vless", "settings": { "vnext": [{ "address": "1.2.3.4", "port": 443 }] },
+              "streamSettings": { "security": "reality", "realitySettings": { "serverName": "example.com" } } },
+            { "protocol": "vless", "settings": { "vnext": [{ "address": "node.test", "port": 8443 }] },
+              "streamSettings": { "security": "tls" } },
+            { "protocol": "vless", "settings": { "vnext": [{ "address": "5.6.7.8", "port": 80 }] },
+              "streamSettings": { "security": "none" } },
+            { "protocol": "freedom" }
+        ] });
+        assert_eq!(
+            адреса_узлов(&конфиг),
+            vec![
+                ("1.2.3.4".to_string(), 443, Some("example.com".to_string())),
+                ("5.6.7.8".to_string(), 80, None),
+                ("node.test".to_string(), 8443, Some("node.test".to_string())),
+            ]
+        );
+    }
+
+    #[test]
+    fn приветствие_собрано_по_правилам() {
+        let пакет = приветствие_tls("example.com");
+        // запись TLS: рукопожатие, длина совпадает с телом
+        assert_eq!(&пакет[..3], &[0x16, 0x03, 0x01]);
+        assert_eq!(u16::from_be_bytes([пакет[3], пакет[4]]) as usize, пакет.len() - 5);
+        // сообщение ClientHello, длина совпадает
+        assert_eq!(пакет[5], 0x01);
+        assert_eq!(u16::from_be_bytes([пакет[7], пакет[8]]) as usize, пакет.len() - 9);
+        assert!(пакет.windows(11).any(|о| о == b"example.com"));
+    }
+
+    /// Ходит в сеть: настоящий сервер обязан ответить на наше приветствие.
+    /// `cargo test -- --ignored приветствие_понимают`
+    #[tokio::test]
+    #[ignore]
+    async fn приветствие_понимают() {
+        for (хост, имя) in [("github.com", "github.com"), ("1.1.1.1", "one.one.one.one")] {
+            let мс = замер_узла(хост, 443, Some(имя), None).await;
+            assert!(мс.is_some(), "{хост} не ответил");
+            println!("{хост}: {} мс", мс.unwrap());
+        }
+    }
 
     #[test]
     fn двойник_подписки() {
