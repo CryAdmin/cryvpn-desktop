@@ -27,11 +27,6 @@ pub struct Сведения {
 }
 
 #[derive(Deserialize)]
-struct Туннель {
-    fd: i32,
-}
-
-#[derive(Deserialize)]
 struct Текст {
     text: String,
 }
@@ -81,17 +76,22 @@ pub async fn подготовить_базы(куда: &Path) -> Result<(), Stri
         .map_err(|e| e.to_string())
 }
 
-/// Просим у Android туннель. В первый раз система покажет человеку окно
-/// согласия. Отдаём номер открытого туннеля; закрыть его — наша забота.
-pub async fn поднять(отметка: &Path, сервер: &str) -> Result<i32, String> {
+/// Просим службу VPN поднять туннель и запустить ядро. В первый раз
+/// система покажет человеку окна согласия — этот вызов их дожидается.
+/// Сама служба работает в отдельном процессе; поднялась ли она, видно по
+/// порту учёта ядра и файлам в папке данных (см. core.rs).
+pub async fn поднять(папка: &Path, ядро: &Path, базы: &Path, сервер: &str) -> Result<(), String> {
     // Приложения, которые человек пустил мимо VPN: Android исключает их из
     // туннеля сам, по имени пакета.
     let мимо: Vec<String> =
         crate::settings::прочитать().мимо_vpn.into_iter().map(|п| п.путь).collect();
     мост()?
-        .run_mobile_plugin_async::<Туннель>("start", json!({ "marker": отметка, "bypass": мимо, "title": сервер }))
+        .run_mobile_plugin_async::<serde_json::Value>(
+            "start",
+            json!({ "dir": папка, "core": ядро, "assets": базы, "bypass": мимо, "title": сервер }),
+        )
         .await
-        .map(|т| т.fd)
+        .map(|_| ())
         .map_err(|e| match e {
             tauri::plugin::mobile::PluginInvokeError::InvokeRejected(отказ) => {
                 отказ.message.unwrap_or_else(|| "Android не дал поднять туннель".into())

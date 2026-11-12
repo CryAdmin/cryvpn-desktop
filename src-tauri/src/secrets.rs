@@ -49,43 +49,129 @@ pub fn забыть(имя: &str) {
 
 // ---------------------------------------------------------------- Windows
 
+// Секрет в PowerShell передаём через стандартный ввод и только в base64.
+//
+// Раньше значение подставлялось прямо в текст команды. Это было плохо
+// дважды. Открытая сессия оказывалась в командной строке процесса, которую
+// видят журналы аудита и защитные программы. А файл `.dat` может подменить
+// любая программа пользователя — и подставленный туда текст с кавычками
+// исполнился бы как команда в нашем процессе с правами администратора.
+// Теперь в команду не попадает ничего, кроме постоянного текста, а
+// прочитанное из файла сначала проверяется: только знаки base64.
+
 #[cfg(windows)]
 fn закрыть(_имя: &str, открытое: &str) -> Option<String> {
-    крипто(&format!(
-        "$д=[Text.Encoding]::UTF8.GetBytes('{}'); \
-         $з=[Security.Cryptography.ProtectedData]::Protect($д,$null,'CurrentUser'); \
+    let итог = крипто(
+        "$б=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()); \
+         $з=[Security.Cryptography.ProtectedData]::Protect($б,$null,'CurrentUser'); \
          [Convert]::ToBase64String($з)",
-        открытое.replace('\'', "''")
-    ))
+        &в_base64(открытое.as_bytes()),
+    )?;
+    только_base64(&итог).then_some(итог)
 }
 
 #[cfg(windows)]
 fn открыть(_имя: &str, закрытое: &str) -> Option<String> {
-    крипто(&format!(
-        "$з=[Convert]::FromBase64String('{}'); \
+    if !только_base64(закрытое) {
+        return None;
+    }
+    let итог = крипто(
+        "$з=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()); \
          $д=[Security.Cryptography.ProtectedData]::Unprotect($з,$null,'CurrentUser'); \
-         [Text.Encoding]::UTF8.GetString($д)",
-        закрытое.replace('\'', "''")
-    ))
+         [Convert]::ToBase64String($д)",
+        закрытое,
+    )?;
+    String::from_utf8(crate::api::base64_в_байты(&итог)?).ok()
 }
 
 #[cfg(windows)]
-fn крипто(что: &str) -> Option<String> {
+fn крипто(что: &str, ввод: &str) -> Option<String> {
+    use std::io::Write;
     use std::os::windows::process::CommandExt;
-    let вывод = std::process::Command::new("powershell")
+    use std::process::Stdio;
+    let mut дитя = std::process::Command::new("powershell")
         .args([
             "-NoProfile",
             "-Command",
             &format!("Add-Type -AssemblyName System.Security; {что}"),
         ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
         .creation_flags(0x08000000)
-        .output()
+        .spawn()
         .ok()?;
+    дитя.stdin.take()?.write_all(ввод.as_bytes()).ok()?;
+    let вывод = дитя.wait_with_output().ok()?;
     if !вывод.status.success() {
         return None;
     }
     let строка = String::from_utf8_lossy(&вывод.stdout).trim().to_string();
     (!строка.is_empty()).then_some(строка)
+}
+
+/// Только знаки base64 — ничего, что PowerShell мог бы принять за код.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn только_base64(текст: &str) -> bool {
+    !текст.is_empty()
+        && текст.len() < 16_384
+        && текст.bytes().all(|б| б.is_ascii_alphanumeric() || б == b'+' || б == b'/' || б == b'=')
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn в_base64(байты: &[u8]) -> String {
+    const АЛФАВИТ: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut итог = String::with_capacity(байты.len().div_ceil(3) * 4);
+    for тройка in байты.chunks(3) {
+        let число = (тройка[0] as u32) << 16
+            | (*тройка.get(1).unwrap_or(&0) as u32) << 8
+            | *тройка.get(2).unwrap_or(&0) as u32;
+        итог.push(АЛФАВИТ[(число >> 18) as usize & 63] as char);
+        итог.push(АЛФАВИТ[(число >> 12) as usize & 63] as char);
+        итог.push(if тройка.len() > 1 { АЛФАВИТ[(число >> 6) as usize & 63] as char } else { '=' });
+        итог.push(if тройка.len() > 2 { АЛФАВИТ[число as usize & 63] as char } else { '=' });
+    }
+    итог
+}
+
+#[cfg(test)]
+mod проверки {
+    use super::*;
+
+    #[test]
+    fn base64_туда_и_обратно() {
+        for текст in ["", "a", "ab", "abc", "https://sub.cryvps.com/код-с-русским", "refresh=1.2.3/+=="] {
+            let закодировано = в_base64(текст.as_bytes());
+            if !текст.is_empty() {
+                assert!(только_base64(&закодировано), "{закодировано}");
+            }
+            assert_eq!(crate::api::base64_в_байты(&закодировано).unwrap(), текст.as_bytes());
+        }
+    }
+
+    /// Настоящее шифрование Windows: что положили, то и достали, а
+    /// подменённый файл не превращается в команду.
+    #[cfg(windows)]
+    #[test]
+    fn dpapi_туда_и_обратно() {
+        for секрет in ["refresh.token-123_ABC", "https://sub.cryvps.com/AbC123", "кириллица и 'кавычки' \"тоже\""] {
+            let закрыто = закрыть("проверка", секрет).expect("не зашифровалось");
+            assert!(только_base64(&закрыто));
+            assert_ne!(закрыто, секрет);
+            assert_eq!(открыть("проверка", &закрыто).as_deref(), Some(секрет));
+        }
+        assert_eq!(открыть("проверка", "x');Start-Process calc;('"), None);
+        assert_eq!(открыть("проверка", "AAAA"), None);
+    }
+
+    #[test]
+    fn подставленный_код_не_проходит() {
+        assert!(!только_base64("x');Start-Process calc;('"));
+        assert!(!только_base64("x\u{2019});Start-Process calc;(\u{2018}"));
+        assert!(!только_base64("abc def"));
+        assert!(!только_base64(""));
+        assert!(только_base64("AAECAwQF+/8="));
+    }
 }
 
 // ------------------------------------------------------------------ macOS

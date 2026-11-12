@@ -29,3 +29,6 @@ mkdir -p "$main/jniLibs/arm64-v8a" "$main/assets"
 cp "$tmp/xray/xray" "$main/jniLibs/arm64-v8a/libxray.so"
 cp "$tmp/xray/geoip.dat" "$tmp/xray/geosite.dat" "$main/assets/"
 ls -la "$main/jniLibs/arm64-v8a" "$main/assets"
+
+# Помощник службы VPN: собирается из src-tauri/cryspawn.
+"$(dirname "$0")/build-android-helper.sh"

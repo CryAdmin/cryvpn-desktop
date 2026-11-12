@@ -30,6 +30,77 @@ pub struct ОжидающийВход(std::sync::Mutex<Option<String>>);
 /// Под этим именем подписка лежит в защищённом хранилище.
 const ПОДПИСКА: &str = "sub";
 
+/// Есть ли значок возле часов. Прятать окно по крестику можно только
+/// когда он есть: иначе человек остался бы без способа открыть приложение.
+#[cfg(desktop)]
+static ЗНАЧОК_ЕСТЬ: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Достаём окно на передний план — в том числе спрятанное к часам.
+fn показать_окно(приложение: &tauri::AppHandle) {
+    if let Some(окно) = приложение.get_webview_window("main") {
+        #[cfg(desktop)]
+        {
+            let _ = окно.show();
+            let _ = окно.unminimize();
+        }
+        let _ = окно.set_focus();
+    }
+}
+
+/// Гасим туннель перед выходом приложения и ждём конца уборки.
+#[cfg(desktop)]
+fn погасить_туннель(приложение: &tauri::AppHandle) {
+    if let Some(связь) = приложение.try_state::<Связь>() {
+        tauri::async_runtime::block_on(async {
+            связь.0.lock().await.выключить_до_конца();
+        });
+        core::забыть_сервер();
+    }
+}
+
+/// Значок возле часов: по нему приложение открывают и из него же выходят.
+/// Не получилось создать — не страшно, просто крестик будет закрывать
+/// приложение, как раньше.
+#[cfg(desktop)]
+fn завести_значок(приложение: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    let открыть = MenuItem::with_id(приложение, "open", "Открыть CryVPN", true, None::<&str>)?;
+    let выход = MenuItem::with_id(приложение, "quit", "Выйти и отключить VPN", true, None::<&str>)?;
+    let меню = Menu::with_items(приложение, &[&открыть, &выход])?;
+
+    let mut значок = TrayIconBuilder::with_id("main")
+        .tooltip("CryVPN")
+        .menu(&меню)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|приложение, событие| match событие.id.as_ref() {
+            "open" => показать_окно(приложение),
+            "quit" => {
+                // Выход — это и отключение: оставлять туннель без приложения нельзя.
+                погасить_туннель(приложение);
+                приложение.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|значок, событие| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = событие
+            {
+                показать_окно(значок.app_handle());
+            }
+        });
+    if let Some(картинка) = приложение.default_window_icon() {
+        значок = значок.icon(картинка.clone());
+    }
+    значок.build(приложение)?;
+    ЗНАЧОК_ЕСТЬ.store(true, std::sync::atomic::Ordering::Relaxed);
+    Ok(())
+}
+
 /// Приняли ссылку: проверяем, запоминаем, будим окно.
 fn принять_ссылку(приложение: &tauri::AppHandle, сырая: &str) {
     // Ссылка входа: токен отдаём окну, оно само спросит кабинет.
@@ -38,11 +109,7 @@ fn принять_ссылку(приложение: &tauri::AppHandle, сыра
             *ждёт.0.lock().unwrap() = Some(токен);
         }
         let _ = приложение.emit("ссылка", ());
-        if let Some(окно) = приложение.get_webview_window("main") {
-            #[cfg(desktop)]
-            let _ = окно.unminimize();
-            let _ = окно.set_focus();
-        }
+        показать_окно(приложение);
         return;
     }
     let Some(адрес) = link::разобрать(сырая) else {
@@ -56,11 +123,7 @@ fn принять_ссылку(приложение: &tauri::AppHandle, сыра
         *ждёт.0.lock().unwrap() = Some(адрес);
     }
     let _ = приложение.emit("ссылка", ());
-    if let Some(окно) = приложение.get_webview_window("main") {
-        #[cfg(desktop)]
-        let _ = окно.unminimize();
-        let _ = окно.set_focus();
-    }
+    показать_окно(приложение);
 }
 
 #[derive(serde::Serialize)]
@@ -230,30 +293,61 @@ async fn подключить(
     };
 
     let mut туннель = связь.0.lock().await;
+    // На компьютере подключение обязано уложиться в разумный срок: вечное
+    // «Подключаемся…» без объяснения хуже честной ошибки. На Android срок
+    // не ставим — там человек может долго читать системные вопросы, а
+    // сама служба ограничена отдельно.
+    #[cfg(not(target_os = "android"))]
+    {
+        let срок = std::time::Duration::from_secs(45);
+        match tokio::time::timeout(срок, туннель.включить(&конфиг)).await {
+            Ok(итог) => итог?,
+            Err(_) => {
+                туннель.выключить();
+                return Err(
+                    "Подключение не уложилось в 45 секунд. Попробуйте ещё раз или другой сервер"
+                        .into(),
+                );
+            }
+        }
+    }
+    #[cfg(target_os = "android")]
     туннель.включить(&конфиг).await?;
 
-    // Android: VPN могут выключить кнопкой в уведомлении, когда окно
-    // свёрнуто и никого ни о чём не спрашивает. Следим сами и гасим ядро
-    // сразу, а не когда человек снова откроет приложение.
-    #[cfg(target_os = "android")]
-    {
-        let сторож = связь.0.clone();
-        tauri::async_runtime::spawn(async move {
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                if !сторож.lock().await.включён() {
-                    break;
-                }
-            }
-        });
-    }
+    core::запомнить_сервер(
+        номер,
+        конфиг.get("remarks").and_then(|и| и.as_str()).unwrap_or(""),
+    );
     Ok(true)
 }
 
 #[tauri::command]
 async fn отключить(связь: State<'_, Связь>) -> Result<bool, String> {
     связь.0.lock().await.выключить();
+    core::забыть_сервер();
     Ok(false)
+}
+
+/// Через какой сервер идёт трафик прямо сейчас: номер в списке, если
+/// туннель поднят и под этим номером всё ещё тот же сервер.
+#[tauri::command]
+async fn текущий_сервер(
+    кабинет: State<'_, Кабинет>,
+    связь: State<'_, Связь>,
+) -> Result<Option<usize>, String> {
+    if !связь.0.lock().await.включён() {
+        return Ok(None);
+    }
+    let Some((номер, имя)) = core::текущий_сервер() else {
+        return Ok(None);
+    };
+    let подписка = кабинет.подписка.lock().await;
+    let тот_же = подписка
+        .get(номер)
+        .and_then(|к| к.get("remarks"))
+        .and_then(|и| и.as_str())
+        .is_some_and(|и| и == имя);
+    Ok(тот_же.then_some(номер))
 }
 
 /// Включён ли туннель прямо сейчас. Окно спрашивает об этом при открытии:
@@ -349,6 +443,7 @@ async fn выйти(кабинет: State<'_, Кабинет>, связь: State
     // Выход из профиля гасит и туннель: оставлять чужой трафик в своём
     // подключении нельзя.
     связь.0.lock().await.выключить();
+    core::забыть_сервер();
     Ok(кабинет.выйти().await)
 }
 
@@ -365,10 +460,7 @@ pub fn run() {
         // её запустили (ссылку cryvpn://), и закрывается. Этот модуль
         // обязан стоять первым.
         .plugin(tauri_plugin_single_instance::init(|приложение, _доводы, _папка| {
-            if let Some(окно) = приложение.get_webview_window("main") {
-                let _ = окно.unminimize();
-                let _ = окно.set_focus();
-            }
+            показать_окно(приложение);
         }))
         .plugin(tauri_plugin_dialog::init());
     сборщик
@@ -406,6 +498,11 @@ pub fn run() {
                 }
             }
 
+            #[cfg(desktop)]
+            if let Err(беда) = завести_значок(приложение.handle()) {
+                eprintln!("[CryVPN] значок возле часов не создан: {беда}");
+            }
+
             // Ядро, драйвер и базы geoip лежат в установке приложения.
             #[cfg(target_os = "android")]
             let ресурсы = paths::папка_данных()
@@ -433,6 +530,7 @@ pub fn run() {
             подключить,
             отключить,
             подключено,
+            текущий_сервер,
             счётчики,
             запущенные_программы,
             выбрать_программу,
@@ -448,6 +546,35 @@ pub fn run() {
             обновиться,
             выйти
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        // Крестик не закрывает приложение, а прячет окно к часам: VPN при
+        // этом продолжает работать. Так ведут себя все VPN-клиенты, и люди
+        // этого ждут — иначе «закрыл окно» значило «остался без защиты».
+        .on_window_event(|_окно, _событие| {
+            #[cfg(desktop)]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = _событие {
+                let прятать = ЗНАЧОК_ЕСТЬ.load(std::sync::atomic::Ordering::Relaxed)
+                    && settings::прочитать().в_трее;
+                if прятать {
+                    api.prevent_close();
+                    let _ = _окно.hide();
+                } else {
+                    // Окно закрывают насовсем. Ядро — отдельный процесс и
+                    // само вместе с приложением не уйдёт: без этого после
+                    // выхода оставались бы поднятый туннель и ни одного
+                    // окна, чтобы его выключить.
+                    погасить_туннель(_окно.app_handle());
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_приложение, _событие| {
+            // Последний рубеж: какой бы дорогой приложение ни выходило,
+            // туннель на компьютере без него остаться не должен. На Android
+            // наоборот — служба VPN намеренно переживает окно.
+            #[cfg(desktop)]
+            if let tauri::RunEvent::Exit = _событие {
+                погасить_туннель(_приложение);
+            }
+        });
 }

@@ -25,7 +25,9 @@ import javax.crypto.spec.GCMParameterSpec
 
 @InvokeArg
 class StartArgs {
-  var marker: String = ""
+  var dir: String = ""
+  var core: String = ""
+  var assets: String = ""
   var bypass: Array<String> = arrayOf()
   var title: String = ""
 }
@@ -48,7 +50,9 @@ class TextArgs {
 /** Мост между приложением и Android: туннель, сведения об устройстве, шифрование. */
 @TauriPlugin
 class VpnPlugin(private val activity: Activity) : Plugin(activity) {
-  private var pendingMarker = ""
+  private var pendingDir = ""
+  private var pendingCore = ""
+  private var pendingAssets = ""
   private var pendingBypass: Array<String> = arrayOf()
   private var pendingTitle = ""
 
@@ -191,7 +195,9 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun start(invoke: Invoke) {
     val args = invoke.parseArgs(StartArgs::class.java)
-    pendingMarker = args.marker
+    pendingDir = args.dir
+    pendingCore = args.core
+    pendingAssets = args.assets
     pendingBypass = args.bypass
     pendingTitle = args.title
     if (needNotificationConsent()) {
@@ -220,21 +226,24 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
+  /**
+   * Запускаем службу и сразу отвечаем приложению. Служба живёт в другом
+   * процессе и о своих делах сообщает файлами (см. CryVpnService); дождаться
+   * туннеля — забота приложения, у него на это есть срок.
+   */
   private fun launch(invoke: Invoke) {
-    CryVpnService.waiter = { fd, error ->
-      if (fd != null) {
-        val out = JSObject()
-        out.put("fd", fd)
-        invoke.resolve(out)
-      } else {
-        invoke.reject(error ?: "не удалось поднять туннель")
-      }
+    try {
+      val intent = Intent(activity, CryVpnService::class.java)
+        .putExtra(CryVpnService.EXTRA_DIR, pendingDir)
+        .putExtra(CryVpnService.EXTRA_CORE, pendingCore)
+        .putExtra(CryVpnService.EXTRA_ASSETS, pendingAssets)
+        .putExtra(CryVpnService.EXTRA_BYPASS, pendingBypass)
+        .putExtra(CryVpnService.EXTRA_TITLE, pendingTitle)
+      if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent) else activity.startService(intent)
+      invoke.resolve(JSObject())
+    } catch (e: Exception) {
+      invoke.reject("Android не дал запустить службу VPN: ${e.message}")
     }
-    val intent = Intent(activity, CryVpnService::class.java)
-      .putExtra(CryVpnService.EXTRA_MARKER, pendingMarker)
-      .putExtra(CryVpnService.EXTRA_BYPASS, pendingBypass)
-      .putExtra(CryVpnService.EXTRA_TITLE, pendingTitle)
-    if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent) else activity.startService(intent)
   }
 
   @Command

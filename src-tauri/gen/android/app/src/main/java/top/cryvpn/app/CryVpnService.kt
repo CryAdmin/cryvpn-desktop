@@ -8,40 +8,90 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.ParcelFileDescriptor
 import java.io.File
 
 /**
- * Системная служба VPN. Её дело — получить у Android туннель и отдать его
- * номер ядру; сам трафик разбирает ядро Xray, запущенное рядом.
+ * Системная служба VPN. Получает у Android туннель и запускает ядро Xray,
+ * которое разбирает трафик.
  *
- * Собственные соединения приложения (а ядро — его дочерний процесс) из
+ * Служба живёт в отдельном процессе (см. манифест, `:vpn`). Окно приложения
+ * тяжёлое, и на многих телефонах смахивание из списка недавних убивает его
+ * процесс целиком. Пока служба жила там же, вместе с окном гас и VPN. Теперь
+ * окно можно закрыть, смахнуть или выгрузить — служба и ядро остаются.
+ *
+ * С приложением служба разговаривает через файлы в его папке данных:
+ *   tunnel.on  — туннель поднят и ядро живо;
+ *   tunnel.err — почему не удалось подняться;
+ *   tunnel.end — почему остановились, если выключили не из приложения.
+ *
+ * Собственные соединения приложения (а ядро — дочерний процесс службы) из
  * туннеля исключены: иначе трафик до сервера уходил бы обратно в туннель.
  */
 class CryVpnService : VpnService() {
   companion object {
     const val ACTION_STOP = "top.cryvpn.app.STOP"
-    const val EXTRA_MARKER = "marker"
+    const val EXTRA_DIR = "dir"
+    const val EXTRA_CORE = "core"
+    const val EXTRA_ASSETS = "assets"
     const val EXTRA_BYPASS = "bypass"
     const val EXTRA_TITLE = "title"
     const val EXTRA_FROM_USER = "fromUser"
     private const val CHANNEL = "vpn"
+    private const val OUTSIDE = "выключено-снаружи"
 
-    /** Кто ждёт номер туннеля: (номер, ошибка). */
-    @Volatile var waiter: ((Int?, String?) -> Unit)? = null
+    init {
+      System.loadLibrary("cryspawn")
+    }
   }
 
-  private var marker: File? = null
+  /** Запускает ядро, передавая ему туннель; отдаёт номер процесса. */
+  private external fun spawnCore(core: String, config: String, assets: String, log: String, fd: Int): Int
+
+  private var dir: File? = null
+  private var corePid = 0
+  private val handler = Handler(Looper.getMainLooper())
+  private val watch = object : Runnable {
+    override fun run() {
+      if (corePid > 0 && !File("/proc/$corePid").exists()) {
+        // Ядро умерло само — туннель без него бесполезен.
+        corePid = 0
+        shutdown()
+        return
+      }
+      handler.postDelayed(this, 2000)
+    }
+  }
+
+  private fun file(name: String): File? = dir?.let { File(it, name) }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     if (intent?.action == ACTION_STOP) {
-      // Кнопка в уведомлении: стираем отметку, по ней приложение гасит
-      // ядро. Остановка из самого приложения отметку уже сняла сама.
-      if (intent.getBooleanExtra(EXTRA_FROM_USER, false)) marker?.delete()
+      // Кнопка в уведомлении: помечаем, что это решение человека, а не обрыв.
+      if (intent.getBooleanExtra(EXTRA_FROM_USER, false)) file("tunnel.end")?.writeText(OUTSIDE)
+      // Останавливаемся «по номеру»: если следом уже пришёл новый запуск
+      // (человек переключил сервер), служба остаётся жить и поднимет его.
+      // Обычная остановка сняла бы службу вместе со свежим туннелем.
+      handler.removeCallbacks(watch)
+      killCore()
+      file("tunnel.on")?.delete()
+      if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
+      stopSelf(startId)
+      return START_NOT_STICKY
+    }
+    val folder = intent?.getStringExtra(EXTRA_DIR)
+    val core = intent?.getStringExtra(EXTRA_CORE)
+    val assets = intent?.getStringExtra(EXTRA_ASSETS)
+    if (folder == null || core == null || assets == null) {
       stopNow()
       return START_NOT_STICKY
     }
-    intent?.getStringExtra(EXTRA_MARKER)?.let { marker = File(it) }
-    showNotification(intent?.getStringExtra(EXTRA_TITLE).orEmpty())
+    dir = File(folder)
+    killCore()
+    file("tunnel.err")?.delete()
+    showNotification(intent.getStringExtra(EXTRA_TITLE).orEmpty())
     try {
       val builder = Builder()
         .setSession("CryVPN")
@@ -56,7 +106,7 @@ class CryVpnService : VpnService() {
         .addDisallowedApplication(packageName)
       // Приложения, которые человек пустил мимо VPN. Удалённое с телефона
       // приложение пропускаем: из-за него туннель не должен сорваться.
-      for (pkg in intent?.getStringArrayExtra(EXTRA_BYPASS) ?: arrayOf()) {
+      for (pkg in intent.getStringArrayExtra(EXTRA_BYPASS) ?: arrayOf()) {
         try {
           builder.addDisallowedApplication(pkg)
         } catch (e: Exception) {
@@ -64,33 +114,60 @@ class CryVpnService : VpnService() {
       }
       if (Build.VERSION.SDK_INT >= 29) builder.setMetered(false)
       val tun = builder.establish() ?: throw IllegalStateException("Android не выдал туннель")
-      // Номер уходит ядру; с этого момента туннель живёт, пока жив его процесс.
-      deliver(tun.detachFd(), null)
-    } catch (e: Exception) {
-      deliver(null, e.message ?: "не удалось поднять туннель")
+      val fd = tun.detachFd()
+      val pid = try {
+        spawnCore(
+          core,
+          File(folder, "current.json").path,
+          assets,
+          File(folder, "xray.log").path,
+          fd
+        )
+      } finally {
+        // Свой экземпляр туннеля закрываем в любом случае: при удаче он
+        // дальше живёт вместе с ядром, при неудаче не должен утечь.
+        try {
+          ParcelFileDescriptor.adoptFd(fd).close()
+        } catch (e: Exception) {
+        }
+      }
+      if (pid <= 0) throw IllegalStateException("ядро не запустилось (код $pid)")
+      corePid = pid
+      file("tunnel.on")?.writeText("1")
+      handler.removeCallbacks(watch)
+      handler.postDelayed(watch, 2000)
+    } catch (e: Throwable) {
+      // Throwable, а не Exception: сюда попадает и сбой загрузки помощника.
+      file("tunnel.err")?.writeText(e.message ?: "не удалось поднять туннель")
       shutdown()
     }
     return START_NOT_STICKY
   }
 
-  private fun deliver(fd: Int?, error: String?) {
-    val w = waiter
-    waiter = null
-    w?.invoke(fd, error)
-  }
-
   /** Человек выключил VPN в настройках системы или включил другой VPN. */
   override fun onRevoke() {
+    file("tunnel.end")?.writeText(OUTSIDE)
     shutdown()
     super.onRevoke()
   }
 
-  // В onDestroy отметку не трогаем: при переключении сервера старая служба
-  // уничтожается уже после того, как новое подключение поставило свою.
+  override fun onDestroy() {
+    handler.removeCallbacks(watch)
+    killCore()
+    super.onDestroy()
+  }
 
-  /** VPN отняли у нас снаружи: стираем отметку, приложение погасит ядро. */
+  private fun killCore() {
+    if (corePid > 0) {
+      android.os.Process.killProcess(corePid)
+      corePid = 0
+    }
+  }
+
   private fun shutdown() {
-    marker?.delete()
+    handler.removeCallbacks(watch)
+    killCore()
+    file("tunnel.on")?.delete()
     stopNow()
   }
 

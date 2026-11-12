@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone)]
 // Поля, которых нет в старом файле настроек, берутся по умолчанию. Без
 // этого первое же новое поле обнуляло человеку все прежние настройки.
 #[serde(default)]
@@ -18,12 +18,28 @@ pub struct Настройки {
     pub с_виндой: bool,
     pub сразу_подключаться: bool,
     pub свёрнутым: bool,
-    pub в_трей: bool,
+    /// Крестик сворачивает приложение в значок возле часов, VPN при этом
+    /// продолжает работать. Включено по умолчанию: человек, закрывший
+    /// окно, не ждёт, что вместе с ним пропадёт защита.
+    pub в_трее: bool,
     /// Последний выбранный сервер — чтобы не искать его заново.
     pub последний_сервер: Option<usize>,
     /// Программы, чей трафик идёт мимо VPN. На компьютере `путь` — это
     /// полный путь к файлу программы, на Android — имя её пакета.
     pub мимо_vpn: Vec<crate::apps::Программа>,
+}
+
+impl Default for Настройки {
+    fn default() -> Self {
+        Self {
+            с_виндой: false,
+            сразу_подключаться: false,
+            свёрнутым: false,
+            в_трее: true,
+            последний_сервер: None,
+            мимо_vpn: Vec::new(),
+        }
+    }
 }
 
 fn путь() -> Option<PathBuf> {
@@ -89,6 +105,21 @@ fn автозапуск(включить: bool) -> Result<(), String> {
         .creation_flags(БЕЗ_ОКНА)
         .output()
         .map_err(|e| format!("не удалось изменить автозапуск: {e}"))?;
+
+    // Задание, созданное так, по умолчанию не стартует от батареи,
+    // снимается при переходе на батарею и живёт не дольше трёх суток. На
+    // ноутбуке это значило: выдернул зарядку — планировщик убил приложение
+    // вместе с VPN, молча. Снимаем все три ограничения. Не вышло —
+    // автозапуск всё равно есть, просто с прежними оговорками.
+    if включить && вывод.status.success() {
+        let скрипт = format!(
+            "$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero); Set-ScheduledTask -TaskName '{ИМЯ}' -Settings $s | Out-Null"
+        );
+        let _ = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &скрипт])
+            .creation_flags(БЕЗ_ОКНА)
+            .output();
+    }
 
     // Удаление несуществующего задания — не ошибка: человек мог выключить
     // галку, которая и так была выключена.

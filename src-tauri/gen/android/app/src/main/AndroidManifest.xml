@@ -70,12 +70,19 @@
 
         <service
             android:name=".CryVpnService"
+            android:process=":vpn"
             android:exported="false"
             android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+            <!-- «Постоянную VPN» из настроек системы пока не поддерживаем:
+                 поднять туннель без приложения служба не умеет — ей нужна
+                 свежая конфигурация. Говорим об этом системе честно. -->
+            <meta-data
+                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+                android:value="false" />
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="vpn" />

@@ -1,0 +1,24 @@
+[package]
+name = "cryspawn"
+version = "0.1.0"
+edition = "2021"
+description = "Запуск ядра Xray из службы VPN на Android"
+license = "GPL-3.0-only"
+publish = false
+
+# Отдельная маленькая библиотека, не часть основного приложения: её грузит
+# служба VPN в своём собственном процессе, где нет ни окна, ни Tauri.
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+libc = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"
+
+[workspace]
