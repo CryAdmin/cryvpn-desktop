@@ -28,4 +28,14 @@ class MainActivity : TauriActivity() {
       WindowInsetsCompat.CONSUMED
     }
   }
+
+  /** Ответ на вопрос об уведомлениях — передаём тому, кто его ждёт. */
+  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    if (requestCode == VpnPlugin.NOTIFICATIONS_REQUEST) {
+      val next = VpnPlugin.afterNotificationAnswer
+      VpnPlugin.afterNotificationAnswer = null
+      next?.invoke()
+    }
+  }
 }

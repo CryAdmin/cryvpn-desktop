@@ -22,6 +22,7 @@ class CryVpnService : VpnService() {
     const val ACTION_STOP = "top.cryvpn.app.STOP"
     const val EXTRA_MARKER = "marker"
     const val EXTRA_BYPASS = "bypass"
+    const val EXTRA_TITLE = "title"
     const val EXTRA_FROM_USER = "fromUser"
     private const val CHANNEL = "vpn"
 
@@ -40,7 +41,7 @@ class CryVpnService : VpnService() {
       return START_NOT_STICKY
     }
     intent?.getStringExtra(EXTRA_MARKER)?.let { marker = File(it) }
-    showNotification()
+    showNotification(intent?.getStringExtra(EXTRA_TITLE).orEmpty())
     try {
       val builder = Builder()
         .setSession("CryVPN")
@@ -98,7 +99,7 @@ class CryVpnService : VpnService() {
     stopSelf()
   }
 
-  private fun showNotification() {
+  private fun showNotification(server: String) {
     val manager = getSystemService(NotificationManager::class.java)
     if (Build.VERSION.SDK_INT >= 26) {
       manager.createNotificationChannel(
@@ -114,10 +115,16 @@ class CryVpnService : VpnService() {
     val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this)
     val notification = builder
       .setContentTitle("CryVPN подключён")
-      .setContentText("Нажмите, чтобы открыть приложение")
+      // Название сервера — чтобы из шторки было видно, куда подключены.
+      .setContentText(if (server.isNotBlank()) server else "Нажмите, чтобы открыть приложение")
       .setSmallIcon(R.drawable.ic_vpn_key)
       .setContentIntent(open)
       .setOngoing(true)
+      .apply {
+        // Показывать сразу: иначе Android придерживает уведомление службы
+        // до десяти секунд.
+        if (Build.VERSION.SDK_INT >= 31) setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+      }
       .addAction(Notification.Action.Builder(null, "Отключить", stop).build())
       .build()
     if (Build.VERSION.SDK_INT >= 34) {

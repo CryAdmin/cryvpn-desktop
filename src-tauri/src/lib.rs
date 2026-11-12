@@ -217,6 +217,22 @@ async fn подключить(
 
     let mut туннель = связь.0.lock().await;
     туннель.включить(&конфиг).await?;
+
+    // Android: VPN могут выключить кнопкой в уведомлении, когда окно
+    // свёрнуто и никого ни о чём не спрашивает. Следим сами и гасим ядро
+    // сразу, а не когда человек снова откроет приложение.
+    #[cfg(target_os = "android")]
+    {
+        let сторож = связь.0.clone();
+        tauri::async_runtime::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                if !сторож.lock().await.включён() {
+                    break;
+                }
+            }
+        });
+    }
     Ok(true)
 }
 

@@ -27,6 +27,7 @@ import javax.crypto.spec.GCMParameterSpec
 class StartArgs {
   var marker: String = ""
   var bypass: Array<String> = arrayOf()
+  var title: String = ""
 }
 
 @InvokeArg
@@ -44,6 +45,38 @@ class TextArgs {
 class VpnPlugin(private val activity: Activity) : Plugin(activity) {
   private var pendingMarker = ""
   private var pendingBypass: Array<String> = arrayOf()
+  private var pendingTitle = ""
+
+  /**
+   * С Android 13 уведомления показываются только с согласия человека. Без
+   * него служба VPN работает, но в шторке её не видно — и непонятно,
+   * включён ли VPN, пока приложение свёрнуто.
+   *
+   * Ответа обязательно дожидаемся: уведомление службы, отправленное до
+   * согласия, система выбрасывает насовсем и после согласия не возвращает.
+   * Откажет — туннель всё равно поднимется, просто без уведомления.
+   */
+  private fun needNotificationConsent(): Boolean {
+    if (Build.VERSION.SDK_INT < 33) return false
+    val permission = android.Manifest.permission.POST_NOTIFICATIONS
+    if (activity.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) return false
+    // Человек уже отказал насовсем — система окно не покажет и не ответит.
+    return !askedBefore() || activity.shouldShowRequestPermissionRationale(permission)
+  }
+
+  private fun askedBefore(): Boolean {
+    val prefs = activity.getSharedPreferences("cryvpn", android.content.Context.MODE_PRIVATE)
+    val asked = prefs.getBoolean("asked_notifications", false)
+    prefs.edit().putBoolean("asked_notifications", true).apply()
+    return asked
+  }
+
+  companion object {
+    const val NOTIFICATIONS_REQUEST = 7001
+
+    /** Что сделать, когда человек ответил на вопрос об уведомлениях. */
+    @Volatile var afterNotificationAnswer: (() -> Unit)? = null
+  }
 
   /** Установленные приложения со значком запуска, кроме нас самих. */
   @Command
@@ -116,6 +149,16 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     val args = invoke.parseArgs(StartArgs::class.java)
     pendingMarker = args.marker
     pendingBypass = args.bypass
+    pendingTitle = args.title
+    if (needNotificationConsent()) {
+      afterNotificationAnswer = { activity.runOnUiThread { askVpnConsent(invoke) } }
+      activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIFICATIONS_REQUEST)
+    } else {
+      askVpnConsent(invoke)
+    }
+  }
+
+  private fun askVpnConsent(invoke: Invoke) {
     val consent = VpnService.prepare(activity)
     if (consent != null) {
       startActivityForResult(invoke, consent, "onConsent")
@@ -146,6 +189,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     val intent = Intent(activity, CryVpnService::class.java)
       .putExtra(CryVpnService.EXTRA_MARKER, pendingMarker)
       .putExtra(CryVpnService.EXTRA_BYPASS, pendingBypass)
+      .putExtra(CryVpnService.EXTRA_TITLE, pendingTitle)
     if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent) else activity.startService(intent)
   }
 

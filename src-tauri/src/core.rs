@@ -23,6 +23,10 @@ use std::process::{Child, Command};
 /// чтобы не столкнуться с чужой программой.
 const ПОРТ_УЧЁТА: u16 = 10853;
 
+/// Пометка: VPN выключили не в приложении, а кнопкой в уведомлении, в
+/// настройках Android или включением другого VPN.
+pub const ВЫКЛЮЧЕНО_СНАРУЖИ: &str = "выключено-снаружи";
+
 #[cfg(windows)]
 const ИМЯ_ЯДРА: &str = "xray.exe";
 #[cfg(target_os = "android")]
@@ -99,6 +103,11 @@ impl Туннель {
         // отметку — по её пропаже гасим ядро.
         #[cfg(target_os = "android")]
         if self.процесс.is_some() && !отметка().is_some_and(|п| п.exists()) {
+            // Это не обрыв, а решение человека или системы — запоминаем,
+            // чтобы окно не пугало словами «туннель оборвался».
+            if let Ok(п) = папка() {
+                let _ = std::fs::write(п.join("tunnel.end"), ВЫКЛЮЧЕНО_СНАРУЖИ);
+            }
             self.выключить();
             return false;
         }
@@ -131,6 +140,12 @@ impl Туннель {
             ));
         }
 
+        // Причина прошлой остановки к новому подключению не относится.
+        #[cfg(target_os = "android")]
+        if let Ok(п) = папка() {
+            let _ = std::fs::remove_file(п.join("tunnel.end"));
+        }
+
         let готовый = собрать_конфиг(конфиг);
         let путь_конфига = папка()?.join("current.json");
         std::fs::write(
@@ -161,7 +176,11 @@ impl Туннель {
         }
         #[cfg(target_os = "android")]
         {
-            let итог = запустить_на_android(&ядро, &путь_конфига, &журнал, &self.ресурсы).await;
+            // Название сервера уходит в уведомление: из шторки видно,
+            // куда подключён телефон.
+            let сервер = конфиг.get("remarks").and_then(|и| и.as_str()).unwrap_or("");
+            let итог =
+                запустить_на_android(&ядро, &путь_конфига, &журнал, &self.ресурсы, сервер).await;
             match итог {
                 Ok(дитя) => self.процесс = Some(дитя),
                 Err(беда) => {
@@ -516,10 +535,11 @@ async fn запустить_на_android(
     конфиг: &PathBuf,
     журнал: &PathBuf,
     ресурсы: &PathBuf,
+    сервер: &str,
 ) -> Result<Child, String> {
     crate::android::подготовить_базы(ресурсы).await?;
     let отметка = отметка().ok_or_else(|| "не найдена папка данных приложения".to_string())?;
-    let туннель = crate::android::поднять(&отметка).await?;
+    let туннель = crate::android::поднять(&отметка, сервер).await?;
 
     let запуск = (|| {
         if unsafe { libc::fcntl(туннель, libc::F_SETFD, 0) } != 0 {

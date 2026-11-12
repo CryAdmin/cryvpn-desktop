@@ -83,13 +83,13 @@ pub async fn подготовить_базы(куда: &Path) -> Result<(), Stri
 
 /// Просим у Android туннель. В первый раз система покажет человеку окно
 /// согласия. Отдаём номер открытого туннеля; закрыть его — наша забота.
-pub async fn поднять(отметка: &Path) -> Result<i32, String> {
+pub async fn поднять(отметка: &Path, сервер: &str) -> Result<i32, String> {
     // Приложения, которые человек пустил мимо VPN: Android исключает их из
     // туннеля сам, по имени пакета.
     let мимо: Vec<String> =
         crate::settings::прочитать().мимо_vpn.into_iter().map(|п| п.путь).collect();
     мост()?
-        .run_mobile_plugin_async::<Туннель>("start", json!({ "marker": отметка, "bypass": мимо }))
+        .run_mobile_plugin_async::<Туннель>("start", json!({ "marker": отметка, "bypass": мимо, "title": сервер }))
         .await
         .map(|т| т.fd)
         .map_err(|e| match e {
