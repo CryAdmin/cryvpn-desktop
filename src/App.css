@@ -1438,3 +1438,111 @@ body {
 .беда {
   white-space: pre-line;
 }
+
+
+/* ===== своя полоса окна (Windows): прозрачная, фон идёт под ней без шва ===== */
+.полоса-окна {
+  position: relative;
+  z-index: 50;
+  height: 32px;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.с-полосой .экран {
+  height: calc(100vh - 32px);
+  padding-top: 4px;
+}
+
+.окно-кнопка {
+  width: 46px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--тусклый);
+  cursor: default;
+  transition: background 0.12s, color 0.12s;
+}
+
+.окно-кнопка:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--текст);
+}
+
+.окно-кнопка.закрыть:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+/* Весть об обновлении: зелёная таблетка с мигающей точкой */
+.обнова {
+  align-self: center;
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(66, 209, 122, 0.45);
+  background: rgba(66, 209, 122, 0.1);
+  color: var(--удача);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  animation: обнова-дышит 2.2s ease-in-out infinite;
+}
+
+.обнова:hover {
+  background: rgba(66, 209, 122, 0.2);
+}
+
+.обнова-точка {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--удача);
+  animation: обнова-мигает 1.1s ease-in-out infinite;
+}
+
+.обнова.качаем {
+  cursor: progress;
+  animation: none;
+}
+
+.обнова.беда {
+  border-color: rgba(248, 81, 73, 0.5);
+  background: rgba(248, 81, 73, 0.1);
+  color: var(--беда);
+  animation: none;
+}
+
+.обнова.беда .обнова-точка {
+  background: var(--беда);
+  animation: none;
+}
+
+@keyframes обнова-мигает {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.25; transform: scale(0.7); }
+}
+
+@keyframes обнова-дышит {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(66, 209, 122, 0); }
+  50% { box-shadow: 0 0 12px 0 rgba(66, 209, 122, 0.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .обнова, .обнова-точка { animation: none; }
+}
+
+
+/* Номер версии внизу настроек */
+.версия-приложения {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--тусклый);
+  opacity: 0.75;
+}

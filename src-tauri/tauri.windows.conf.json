@@ -1,4 +1,19 @@
 {
+  "app": {
+    "windows": [
+      {
+        "title": "CryVPN",
+        "width": 700,
+        "height": 990,
+        "minWidth": 600,
+        "minHeight": 760,
+        "resizable": true,
+        "center": true,
+        "decorations": false,
+        "shadow": true
+      }
+    ]
+  },
   "bundle": {
     "targets": [
       "nsis",

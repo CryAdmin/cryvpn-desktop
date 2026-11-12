@@ -1,6 +1,6 @@
 [package]
 name = "cryvpn"
-version = "0.1.1"
+version = "0.1.2"
 description = "CryVPN desktop client"
 authors = ["CryVPN"]
 license = "GPL-3.0-only"
@@ -34,6 +34,8 @@ reqwest = { version = "0.12", default-features = false, features = [
   "cookies",
   "rustls-tls",
 ] }
+# Сверка скачанного обновления с его описанием.
+sha2 = "0.10"
 tokio = { version = "1", features = ["sync", "time", "net", "rt", "rt-multi-thread", "macros"] }
 
 

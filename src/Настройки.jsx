@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 
 /** Окошко настроек поверх главного экрана. */
 export default function Настройки({ закрыть }) {
   const [свойства, установить] = useState(null);
   const [беда, установитьБеду] = useState("");
+  const [версия, установитьВерсию] = useState("");
+
+  useEffect(() => {
+    getVersion().then(установитьВерсию).catch(() => {});
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -68,6 +74,7 @@ export default function Настройки({ закрыть }) {
         )}
 
         {беда && <p className="беда">{беда}</p>}
+        {версия && <p className="версия-приложения">CryVPN {версия}</p>}
       </div>
     </div>
   );

@@ -323,7 +323,6 @@ export default function Главная({ профиль, обновить, вы�
               />
             </svg>
           </button>
-          <span className="знак малый">CryVPN</span>
         </div>
         <div className="шапка-право">
           <span className="тускло">

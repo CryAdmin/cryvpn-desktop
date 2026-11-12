@@ -329,12 +329,16 @@ impl Кабинет {
     /// сколько идёт до сервера по тому же пути, которым пойдёт туннель.
     /// У конфигураций с несколькими узлами («Авто выбор») берём лучший.
     /// Не дозвонились — отдаём пусто, а не выдуманное число.
-    pub async fn пинг(&self) -> Vec<Option<u32>> {
+    ///
+    /// `мимо` — адрес компьютера в обычной сети. Когда туннель поднят,
+    /// замер привязывается к нему и идёт мимо туннеля, иначе мерили бы
+    /// сами себя и получали ноль.
+    pub async fn пинг(&self, мимо: Option<std::net::Ipv4Addr>) -> Vec<Option<u32>> {
         let подписка = self.подписка.lock().await.clone();
         let задачи = подписка.into_iter().map(|конфиг| async move {
             let адреса = адреса_узлов(&конфиг);
             let замеры = адреса.into_iter().map(|(хост, порт)| async move {
-                замер_узла(&хост, порт).await
+                замер_узла(&хост, порт, мимо).await
             });
             let mut лучший: Option<u32> = None;
             for итог in futures_вместе(замеры).await {
@@ -513,27 +517,47 @@ fn разобрать_трафик(заголовки: &reqwest::header::HeaderM
 /// маршрута, поэтому цифры прыгали: раз 40 мс, раз 180. Теперь имя
 /// разрешается отдельно и в счёт не идёт, а из трёх попыток берётся
 /// наименьшая — это и есть настоящая задержка до сервера, остальное шум.
-async fn замер_узла(хост: &str, порт: u16) -> Option<u32> {
+async fn замер_узла(хост: &str, порт: u16, мимо: Option<std::net::Ipv4Addr>) -> Option<u32> {
     let предел = std::time::Duration::from_secs(2);
 
-    let адрес = tokio::time::timeout(предел, tokio::net::lookup_host((хост, порт)))
-        .await
-        .ok()?
-        .ok()?
-        .next()?;
+    let адреса: Vec<std::net::SocketAddr> =
+        tokio::time::timeout(предел, tokio::net::lookup_host((хост, порт)))
+            .await
+            .ok()?
+            .ok()?
+            .collect();
+    // Привязаться к обычной сети можем только для IPv4.
+    let адрес = match мимо {
+        Some(_) => *адреса.iter().find(|а| а.is_ipv4())?,
+        None => *адреса.first()?,
+    };
 
     let mut лучший: Option<u32> = None;
     for _ in 0..3 {
         let начало = std::time::Instant::now();
-        if let Ok(Ok(_)) =
-            tokio::time::timeout(предел, tokio::net::TcpStream::connect(адрес)).await
-        {
+        if let Ok(Ok(_)) = tokio::time::timeout(предел, соединиться(адрес, мимо)).await {
             let мс = начало.elapsed().as_millis() as u32;
             лучший = Some(лучший.map_or(мс, |б| б.min(мс)));
         }
         tokio::time::sleep(std::time::Duration::from_millis(60)).await;
     }
     лучший
+}
+
+/// Соединение с узлом; при заданном `мимо` — с обычного адреса компьютера,
+/// то есть в обход туннеля.
+async fn соединиться(
+    адрес: std::net::SocketAddr,
+    мимо: Option<std::net::Ipv4Addr>,
+) -> std::io::Result<tokio::net::TcpStream> {
+    match мимо {
+        Some(свой) => {
+            let гнездо = tokio::net::TcpSocket::new_v4()?;
+            гнездо.bind(std::net::SocketAddr::from((свой, 0)))?;
+            гнездо.connect(адрес).await
+        }
+        None => tokio::net::TcpStream::connect(адрес).await,
+    }
 }
 
 /// Запускаем несколько замеров одновременно и ждём всех.
