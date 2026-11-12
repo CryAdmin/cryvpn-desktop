@@ -13,7 +13,45 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-const БАЗА: &str = "https://api.cryvps.com/api/v2";
+/// Адреса кабинета, по убыванию предпочтения. Оба ведут на один и тот же
+/// сервер. Запасной нужен потому, что имя `api.cryvps.com` находится не
+/// через всякий DNS: под чужим VPN приложение получало «адрес не найден»
+/// и не могло даже начать вход.
+const БАЗЫ: [&str; 2] = ["https://api.cryvps.com/api/v2", "https://cryvps.com/api"];
+
+/// Какой адрес сработал в прошлый раз — с него и начинаем.
+static РАБОЧАЯ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Шлём запрос на кабинет, при неудаче связи пробуем запасной адрес.
+///
+/// Запасной идёт в ход только когда до сервера не дозвонились вовсе или
+/// ответил не он сам, а прокладка перед ним (502–504). Ответ самого
+/// кабинета, даже с ошибкой, окончателен: повторять его не нужно.
+async fn послать(
+    собрать: impl Fn(&str) -> reqwest::RequestBuilder,
+) -> Result<reqwest::Response, reqwest::Error> {
+    use std::sync::atomic::Ordering;
+    let начало = РАБОЧАЯ.load(Ordering::Relaxed);
+    let mut беда = None;
+    let mut слабый = None;
+    for шаг in 0..БАЗЫ.len() {
+        let номер = (начало + шаг) % БАЗЫ.len();
+        match собрать(БАЗЫ[номер]).send().await {
+            Ok(ответ) if matches!(ответ.status().as_u16(), 502..=504) => слабый = Some(ответ),
+            Ok(ответ) => {
+                РАБОЧАЯ.store(номер, Ordering::Relaxed);
+                return Ok(ответ);
+            }
+            Err(e) if e.is_connect() || e.is_timeout() => беда = Some(e),
+            Err(e) => return Err(e),
+        }
+    }
+    match (слабый, беда) {
+        (Some(ответ), _) => Ok(ответ),
+        (None, Some(e)) => Err(e),
+        (None, None) => unreachable!("адресов кабинета не меньше одного"),
+    }
+}
 
 /// Чем приложение представляется серверу. Видно в списке сессий кабинета,
 /// поэтому пишем честно: человек должен отличать свой компьютер от браузера.
@@ -101,6 +139,9 @@ impl Кабинет {
             // пути, после этого мертво, и запрос по нему висит до таймаута.
             .pool_max_idle_per_host(0)
             .cookie_store(true)
+            // На установку связи — немного: если адрес недоступен, быстрее
+            // перейти к запасному, чем держать человека двадцать секунд.
+            .connect_timeout(std::time::Duration::from_secs(7))
             .timeout(std::time::Duration::from_secs(20))
             .build()
             .map_err(|e| format!("не удалось создать http-клиент: {e}"))?;
@@ -112,11 +153,7 @@ impl Кабинет {
     }
 
     async fn почтой(&self, путь: &str, тело: Value) -> Result<(u16, Value), String> {
-        let ответ = self
-            .http
-            .post(format!("{БАЗА}{путь}"))
-            .json(&тело)
-            .send()
+        let ответ = послать(|база| self.http.post(format!("{база}{путь}")).json(&тело))
             .await
             .map_err(|e| {
                 let вовремя = !e.is_timeout();
@@ -266,11 +303,7 @@ impl Кабинет {
                 .clone()
                 .ok_or_else(|| "Вход не выполнен".to_string())?;
 
-            let ответ = self
-                .http
-                .post(format!("{БАЗА}/get/me"))
-                .bearer_auth(токен)
-                .send()
+            let ответ = послать(|база| self.http.post(format!("{база}/get/me")).bearer_auth(&токен))
                 .await
                 .map_err(|e| {
                     let причина = расшифровать_ошибку(e);
@@ -435,12 +468,12 @@ impl Кабинет {
             return false;
         };
 
-        let ответ = self
-            .http
-            .post(format!("{БАЗА}/auth/refresh"))
-            .header("Cookie", format!("refresh_token={кука}"))
-            .send()
-            .await;
+        let ответ = послать(|база| {
+            self.http
+                .post(format!("{база}/auth/refresh"))
+                .header("Cookie", format!("refresh_token={кука}"))
+        })
+        .await;
 
         let Ok(ответ) = ответ else { return false };
 
@@ -472,11 +505,7 @@ impl Кабинет {
     pub async fn выйти(&self) -> Ответ {
         let токен = self.токен.lock().await.clone();
         if let Some(токен) = токен {
-            let _ = self
-                .http
-                .post(format!("{БАЗА}/auth/logout"))
-                .bearer_auth(токен)
-                .send()
+            let _ = послать(|база| self.http.post(format!("{база}/auth/logout")).bearer_auth(&токен))
                 .await;
         }
         *self.токен.lock().await = None;
@@ -754,4 +783,22 @@ fn сообщение_сервера(данные: &Value) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod проверки_сети {
+    use super::*;
+
+    /// Ходит в настоящий кабинет, поэтому по умолчанию выключена:
+    /// `cargo test -- --ignored запасной_адрес`. Полезна там, где имя
+    /// `api.cryvps.com` не находится через DNS: вход должен дойти до
+    /// сервера по запасному адресу и получить его осмысленный отказ.
+    #[tokio::test]
+    #[ignore]
+    async fn запасной_адрес() {
+        let кабинет = Кабинет::новый().unwrap();
+        let опрос = кабинет.телеграм_опрос("x").await;
+        assert_eq!(опрос.состояние, "отказ");
+        assert!(опрос.сообщение.contains("ссылка"), "{}", опрос.сообщение);
+    }
 }

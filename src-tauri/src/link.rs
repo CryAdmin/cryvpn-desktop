@@ -14,6 +14,23 @@ const НАШИ_ДОМЕНЫ: [&str; 2] = ["sub.cryvps.com", "crysubik.com"];
 
 const НАЧАЛО: &str = "cryvpn://add/";
 
+const НАЧАЛО_ВХОДА: &str = "cryvpn://login/";
+
+/// Ссылка входа `cryvpn://login/<токен>`: страница подписки, открытая
+/// самим человеком, выдаёт одноразовый токен, и приложение по нему входит
+/// в кабинет. Сам токен ничего не открывает, пока кабинет его не признает,
+/// поэтому здесь только проверяем вид: 43 знака base64url и ничего больше.
+pub fn разобрать_вход(сырая: &str) -> Option<String> {
+    let сырая = сырая.trim();
+    if !сырая.to_ascii_lowercase().starts_with(НАЧАЛО_ВХОДА) {
+        return None;
+    }
+    let токен = сырая[НАЧАЛО_ВХОДА.len()..].trim_end_matches('/');
+    let годен = токен.len() == 43
+        && токен.chars().all(|с| с.is_ascii_alphanumeric() || с == '-' || с == '_');
+    годен.then(|| токен.to_string())
+}
+
 /// Возвращает адрес подписки или `None`, если ссылке нельзя доверять.
 pub fn разобрать(сырая: &str) -> Option<String> {
     let сырая = сырая.trim();
@@ -60,6 +77,17 @@ pub fn разобрать(сырая: &str) -> Option<String> {
 
 #[cfg(test)]
 mod проверки {
+    #[test]
+    fn ссылка_входа() {
+        let токен = "A".repeat(43);
+        assert_eq!(super::разобрать_вход(&format!("cryvpn://login/{токен}")), Some(токен.clone()));
+        assert_eq!(super::разобрать_вход(&format!("cryvpn://login/{токен}/")), Some(токен.clone()));
+        assert_eq!(super::разобрать_вход("cryvpn://login/short"), None);
+        assert_eq!(super::разобрать_вход(&format!("cryvpn://login/{}", "A".repeat(44))), None);
+        assert_eq!(super::разобрать_вход(&format!("cryvpn://login/{}?x=1", "A".repeat(41))), None);
+        assert_eq!(super::разобрать_вход(&format!("cryvpn://add/{токен}")), None);
+    }
+
     use super::разобрать;
 
     #[test]
