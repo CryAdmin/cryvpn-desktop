@@ -73,7 +73,7 @@ export default function Вход({ вошли }) {
             className="поле код"
             inputMode="numeric"
             autoFocus
-            placeholder="— — — —"
+            placeholder="— — — — — —"
             value={код}
             onChange={(e) => установитьКод(e.target.value)}
             required

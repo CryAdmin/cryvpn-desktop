@@ -6,6 +6,8 @@ import Полоса from "./Полоса.jsx";
 // Системную полосу окна убираем только в Windows; на Mac она и так тёмная.
 const своя_полоса = navigator.userAgent.includes("Windows");
 if (своя_полоса) document.documentElement.classList.add("с-полосой");
+// На телефоне экран прокручивается целиком, см. App.css.
+if (navigator.userAgent.includes("Android")) document.documentElement.classList.add("телефон");
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

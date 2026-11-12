@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 
+// Автозапуск, трей и свёрнутое окно — понятия компьютера. На телефоне
+// их нет, поэтому там эти переключатели не показываем.
+const телефон = navigator.userAgent.includes("Android");
+
 /** Окошко настроек поверх главного экрана. */
 export default function Настройки({ закрыть }) {
   const [свойства, установить] = useState(null);
@@ -42,7 +46,11 @@ export default function Настройки({ закрыть }) {
           </button>
         </div>
 
-        {!свойства ? (
+        {телефон ? (
+          <p className="строка">
+            На телефоне настраивать нечего: VPN включается и выключается кнопкой, а в фоне работает сам
+          </p>
+        ) : !свойства ? (
           <p className="строка">Читаем настройки…</p>
         ) : (
           <>
