@@ -21,6 +21,7 @@ class CryVpnService : VpnService() {
   companion object {
     const val ACTION_STOP = "top.cryvpn.app.STOP"
     const val EXTRA_MARKER = "marker"
+    const val EXTRA_BYPASS = "bypass"
     const val EXTRA_FROM_USER = "fromUser"
     private const val CHANNEL = "vpn"
 
@@ -52,6 +53,14 @@ class CryVpnService : VpnService() {
         .addDnsServer("1.1.1.1")
         .addDnsServer("8.8.8.8")
         .addDisallowedApplication(packageName)
+      // Приложения, которые человек пустил мимо VPN. Удалённое с телефона
+      // приложение пропускаем: из-за него туннель не должен сорваться.
+      for (pkg in intent?.getStringArrayExtra(EXTRA_BYPASS) ?: arrayOf()) {
+        try {
+          builder.addDisallowedApplication(pkg)
+        } catch (e: Exception) {
+        }
+      }
       if (Build.VERSION.SDK_INT >= 29) builder.setMetered(false)
       val tun = builder.establish() ?: throw IllegalStateException("Android не выдал туннель")
       // Номер уходит ядру; с этого момента туннель живёт, пока жив его процесс.

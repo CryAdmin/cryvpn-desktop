@@ -26,6 +26,7 @@ import javax.crypto.spec.GCMParameterSpec
 @InvokeArg
 class StartArgs {
   var marker: String = ""
+  var bypass: Array<String> = arrayOf()
 }
 
 @InvokeArg
@@ -42,6 +43,31 @@ class TextArgs {
 @TauriPlugin
 class VpnPlugin(private val activity: Activity) : Plugin(activity) {
   private var pendingMarker = ""
+  private var pendingBypass: Array<String> = arrayOf()
+
+  /** Установленные приложения со значком запуска, кроме нас самих. */
+  @Command
+  fun apps(invoke: Invoke) {
+    Thread {
+      val pm = activity.packageManager
+      val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+      val list = app.tauri.plugin.JSArray()
+      pm.queryIntentActivities(launcher, 0)
+        .map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
+        .filter { it.first != activity.packageName }
+        .distinctBy { it.first }
+        .sortedBy { it.second.lowercase() }
+        .forEach { (id, name) ->
+          val item = JSObject()
+          item.put("id", id)
+          item.put("name", name)
+          list.put(item)
+        }
+      val out = JSObject()
+      out.put("apps", list)
+      invoke.resolve(out)
+    }.start()
+  }
 
   /** Сведения об устройстве и о том, где лежит ядро. */
   @Command
@@ -89,6 +115,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
   fun start(invoke: Invoke) {
     val args = invoke.parseArgs(StartArgs::class.java)
     pendingMarker = args.marker
+    pendingBypass = args.bypass
     val consent = VpnService.prepare(activity)
     if (consent != null) {
       startActivityForResult(invoke, consent, "onConsent")
@@ -118,6 +145,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     }
     val intent = Intent(activity, CryVpnService::class.java)
       .putExtra(CryVpnService.EXTRA_MARKER, pendingMarker)
+      .putExtra(CryVpnService.EXTRA_BYPASS, pendingBypass)
     if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent) else activity.startService(intent)
   }
 

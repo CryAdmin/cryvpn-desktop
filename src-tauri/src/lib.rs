@@ -1,6 +1,7 @@
 #[cfg(target_os = "android")]
 mod android;
 mod api;
+mod apps;
 mod core;
 mod device;
 mod link;
@@ -275,6 +276,39 @@ fn сохранить_настройки(новые: settings::Настройк�
     settings::записать(&новые)
 }
 
+/// Запущенные программы с окнами — чтобы выбрать, кого пустить мимо VPN.
+#[tauri::command]
+async fn запущенные_программы() -> Result<Vec<apps::Программа>, String> {
+    tokio::task::spawn_blocking(apps::запущенные).await.map_err(|e| e.to_string())
+}
+
+/// Окно выбора файла программы. Отдаёт путь или ничего, если передумали.
+#[cfg(desktop)]
+#[tauri::command]
+async fn выбрать_программу(приложение: tauri::AppHandle) -> Result<Option<apps::Программа>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let выбор = tokio::task::spawn_blocking(move || {
+        приложение
+            .dialog()
+            .file()
+            .set_title("Программа, которая пойдёт мимо VPN")
+            .add_filter("Программы", &["exe"])
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(выбор.and_then(|файл| файл.into_path().ok()).map(|путь| {
+        let путь = путь.display().to_string();
+        apps::Программа { имя: apps::имя_из_пути(&путь), путь }
+    }))
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+async fn выбрать_программу() -> Result<Option<apps::Программа>, String> {
+    Ok(None)
+}
+
 #[tauri::command]
 async fn счётчики(связь: State<'_, Связь>) -> Result<core::Счётчики, String> {
     Ok(связь.0.lock().await.счётчики())
@@ -305,7 +339,8 @@ pub fn run() {
                 let _ = окно.unminimize();
                 let _ = окно.set_focus();
             }
-        }));
+        }))
+        .plugin(tauri_plugin_dialog::init());
     сборщик
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
@@ -369,6 +404,8 @@ pub fn run() {
             отключить,
             подключено,
             счётчики,
+            запущенные_программы,
+            выбрать_программу,
             настройки,
             сохранить_настройки,
             открыть_ссылку,

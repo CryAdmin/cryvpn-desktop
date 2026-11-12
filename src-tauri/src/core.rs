@@ -380,7 +380,103 @@ fn собрать_конфиг(исходный: &Value) -> Value {
         );
     }
 
+    // Программы, которые человек пустил мимо VPN. Ядро узнаёт их трафик
+    // по пути к файлу и отправляет напрямую, через обычную сеть.
+    #[cfg(windows)]
+    добавить_исключения(&mut конфиг, &crate::apps::для_ядра(&crate::settings::прочитать().мимо_vpn));
+
     конфиг
+}
+
+/// Правило «эти программы — напрямую».
+///
+/// Прямой выход берём тот, что уже есть в подписке (через него идут
+/// российские сайты); если его нет — добавляем свой. Правило ставим сразу
+/// за служебным, раньше всех правил подписки: выбор человека важнее.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn добавить_исключения(конфиг: &mut Value, программы: &[String]) {
+    if программы.is_empty() {
+        return;
+    }
+    let готовый = конфиг
+        .get("outbounds")
+        .and_then(|в| в.as_array())
+        .into_iter()
+        .flatten()
+        .find(|в| в.get("protocol").and_then(|п| п.as_str()) == Some("freedom"))
+        .and_then(|в| в.get("tag").and_then(|т| т.as_str()))
+        .map(str::to_string);
+    let выход = готовый.unwrap_or_else(|| {
+        let метка = "мимо-vpn".to_string();
+        if !конфиг["outbounds"].is_array() {
+            конфиг["outbounds"] = json!([]);
+        }
+        if let Some(выходы) = конфиг["outbounds"].as_array_mut() {
+            выходы.push(json!({ "tag": метка, "protocol": "freedom" }));
+        }
+        метка
+    });
+
+    if !конфиг["routing"].is_object() {
+        конфиг["routing"] = json!({});
+    }
+    if !конфиг["routing"]["rules"].is_array() {
+        конфиг["routing"]["rules"] = json!([]);
+    }
+    if let Some(правила) = конфиг["routing"]["rules"].as_array_mut() {
+        // Служебное правило учёта остаётся первым.
+        let место = usize::from(
+            правила
+                .first()
+                .and_then(|п| п.get("outboundTag"))
+                .and_then(|т| т.as_str())
+                == Some("api"),
+        );
+        правила.insert(
+            место,
+            json!({ "type": "field", "process": программы, "outboundTag": выход }),
+        );
+    }
+}
+
+#[cfg(test)]
+mod проверки {
+    use super::*;
+
+    #[test]
+    fn исключения_встают_после_служебного_правила() {
+        let mut конфиг = json!({
+            "outbounds": [
+                { "tag": "proxy", "protocol": "vless" },
+                { "tag": "direct", "protocol": "freedom" }
+            ],
+            "routing": { "rules": [
+                { "type": "field", "inboundTag": ["учёт"], "outboundTag": "api" },
+                { "type": "field", "domain": ["geosite:ru"], "outboundTag": "direct" }
+            ] }
+        });
+        добавить_исключения(&mut конфиг, &["C:/App/app.exe".to_string()]);
+        let правила = конфиг["routing"]["rules"].as_array().unwrap();
+        assert_eq!(правила.len(), 3);
+        assert_eq!(правила[0]["outboundTag"], "api");
+        assert_eq!(правила[1]["process"][0], "C:/App/app.exe");
+        assert_eq!(правила[1]["outboundTag"], "direct");
+    }
+
+    #[test]
+    fn без_прямого_выхода_добавляем_свой() {
+        let mut конфиг = json!({ "outbounds": [{ "tag": "proxy", "protocol": "vless" }] });
+        добавить_исключения(&mut конфиг, &["C:/App/app.exe".to_string()]);
+        assert_eq!(конфиг["outbounds"][1]["protocol"], "freedom");
+        assert_eq!(конфиг["routing"]["rules"][0]["outboundTag"], конфиг["outbounds"][1]["tag"]);
+    }
+
+    #[test]
+    fn пустой_список_ничего_не_меняет() {
+        let mut конфиг = json!({ "outbounds": [] });
+        добавить_исключения(&mut конфиг, &[]);
+        assert!(конфиг.get("routing").is_none());
+    }
 }
 
 fn папка() -> Result<PathBuf, String> {

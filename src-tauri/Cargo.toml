@@ -1,6 +1,6 @@
 [package]
 name = "cryvpn"
-version = "0.1.5"
+version = "0.1.6"
 description = "CryVPN desktop client"
 authors = ["CryVPN"]
 license = "GPL-3.0-only"
@@ -40,6 +40,8 @@ tokio = { version = "1", features = ["sync", "time", "net", "rt", "rt-multi-thre
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# Окно выбора файла — программа, которую человек пускает мимо VPN.
+tauri-plugin-dialog = "2"
 
 # Android: передача туннеля дочернему процессу.
 [target.'cfg(target_os = "android")'.dependencies]

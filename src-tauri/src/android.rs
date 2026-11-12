@@ -84,8 +84,12 @@ pub async fn подготовить_базы(куда: &Path) -> Result<(), Stri
 /// Просим у Android туннель. В первый раз система покажет человеку окно
 /// согласия. Отдаём номер открытого туннеля; закрыть его — наша забота.
 pub async fn поднять(отметка: &Path) -> Result<i32, String> {
+    // Приложения, которые человек пустил мимо VPN: Android исключает их из
+    // туннеля сам, по имени пакета.
+    let мимо: Vec<String> =
+        crate::settings::прочитать().мимо_vpn.into_iter().map(|п| п.путь).collect();
     мост()?
-        .run_mobile_plugin_async::<Туннель>("start", json!({ "marker": отметка }))
+        .run_mobile_plugin_async::<Туннель>("start", json!({ "marker": отметка, "bypass": мимо }))
         .await
         .map(|т| т.fd)
         .map_err(|e| match e {
@@ -105,6 +109,32 @@ pub fn опустить() {
     if let Ok(м) = мост() {
         let _ = м.run_mobile_plugin::<serde_json::Value>("stop", ());
     }
+}
+
+#[derive(Deserialize)]
+struct Приложения {
+    apps: Vec<Приложение>,
+}
+
+#[derive(Deserialize)]
+struct Приложение {
+    name: String,
+    id: String,
+}
+
+/// Установленные приложения со значком запуска — для выбора «мимо VPN».
+pub fn приложения() -> Vec<crate::apps::Программа> {
+    мост()
+        .ok()
+        .and_then(|м| м.run_mobile_plugin::<Приложения>("apps", ()).ok())
+        .map(|ответ| {
+            ответ
+                .apps
+                .into_iter()
+                .map(|п| crate::apps::Программа { имя: п.name, путь: п.id })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub fn запечатать(открытое: &str) -> Option<String> {

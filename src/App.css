@@ -1662,3 +1662,112 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ожидание { animation: none; }
 }
+
+
+/* ===== программы мимо VPN (в настройках) ===== */
+.мимо {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--грань);
+}
+
+.мимо-список,
+.мимо-найдено {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.мимо-строка {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 8px 7px 12px;
+  background: var(--фон);
+  border: 1px solid var(--грань);
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.мимо-имя {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.мимо-убрать {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--тусклый);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.мимо-убрать:hover {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--беда);
+}
+
+.мимо-кнопки {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.мимо-выбор {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.поле.мелкое {
+  padding: 8px 11px;
+  font-size: 13px;
+}
+
+.мимо-найдено {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.мимо-вариант {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: var(--фон);
+  border: 1px solid var(--грань);
+  border-radius: 9px;
+  color: var(--текст);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.мимо-вариант:hover {
+  border-color: var(--удача);
+}
+
+.телефон .окошко {
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+/* Настройки с длинным списком не должны вылезать за окно */
+.окошко {
+  max-height: 88vh;
+  overflow-y: auto;
+}
