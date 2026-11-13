@@ -33,6 +33,18 @@ import java.io.File
 class CryVpnService : VpnService() {
   companion object {
     const val ACTION_STOP = "top.cryvpn.app.STOP"
+    /** Поднять туннель заново с тем же сервером — без окна приложения. */
+    const val ACTION_START_LAST = "top.cryvpn.app.START_LAST"
+    /** Конфигурация прошлого подключения, зашифрованная (см. Vault). */
+    const val LAST_CONFIG = "last.dat"
+    private const val PREFS = "cryvpn_last"
+
+    /** Есть ли чем подняться без приложения. */
+    fun canStartLast(context: android.content.Context): Boolean {
+      val prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE)
+      val dir = prefs.getString(EXTRA_DIR, null) ?: return false
+      return prefs.getString(EXTRA_ASSETS, null) != null && File(dir, LAST_CONFIG).exists()
+    }
     const val EXTRA_DIR = "dir"
     const val EXTRA_CORE = "core"
     const val EXTRA_ASSETS = "assets"
@@ -61,6 +73,16 @@ class CryVpnService : VpnService() {
         shutdown()
         return
       }
+      // Запоминаем, какой сервер записало приложение: при запуске с плитки
+      // эту запись вернём, и окно покажет, куда подключён телефон.
+      try {
+        val server = file("tunnel.server")?.takeIf { it.exists() }?.readText()
+        if (!server.isNullOrBlank()) {
+          val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+          if (prefs.getString("server", null) != server) prefs.edit().putString("server", server).apply()
+        }
+      } catch (e: Exception) {
+      }
       handler.postDelayed(this, 2000)
     }
   }
@@ -82,9 +104,21 @@ class CryVpnService : VpnService() {
       stopSelf(startId)
       return START_NOT_STICKY
     }
-    val folder = intent?.getStringExtra(EXTRA_DIR)
-    val core = intent?.getStringExtra(EXTRA_CORE)
-    val assets = intent?.getStringExtra(EXTRA_ASSETS)
+    // Запуск с плитки: окна приложения нет, берём всё из прошлого раза.
+    val last = intent?.action == ACTION_START_LAST
+    val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+    val folder = if (last) prefs.getString(EXTRA_DIR, null) else intent?.getStringExtra(EXTRA_DIR)
+    // Путь к ядру не запоминаем, а спрашиваем у системы: после каждого
+    // обновления приложения его папка меняется, и запомненный путь вёл бы
+    // в никуда — плитка молча переставала бы включать VPN.
+    val core = if (last) File(applicationInfo.nativeLibraryDir, "libxray.so").path else intent?.getStringExtra(EXTRA_CORE)
+    val assets = if (last) prefs.getString(EXTRA_ASSETS, null) else intent?.getStringExtra(EXTRA_ASSETS)
+    val bypass: Array<String> = if (last) {
+      prefs.getString(EXTRA_BYPASS, "").orEmpty().split("\n").filter { it.isNotBlank() }.toTypedArray()
+    } else {
+      intent?.getStringArrayExtra(EXTRA_BYPASS) ?: arrayOf()
+    }
+    val title = if (last) prefs.getString(EXTRA_TITLE, "").orEmpty() else intent?.getStringExtra(EXTRA_TITLE).orEmpty()
     if (folder == null || core == null || assets == null) {
       stopNow()
       return START_NOT_STICKY
@@ -93,8 +127,32 @@ class CryVpnService : VpnService() {
     CryTileService.rememberDir(this, folder)
     killCore()
     file("tunnel.err")?.delete()
-    showNotification(intent.getStringExtra(EXTRA_TITLE).orEmpty())
+    // Уведомление — первым делом: служба переднего плана обязана показать
+    // его в считаные секунды после запуска.
+    showNotification(title)
+    val config = File(folder, "current.json")
     try {
+      if (last) {
+        // Конфигурацию достаём из зашифрованной копии. Открытой она лежит
+        // на диске несколько секунд, пока ядро её не прочтёт.
+        config.writeBytes(Vault.unseal(File(folder, LAST_CONFIG).readText()))
+        file("tunnel.end")?.delete()
+        prefs.getString("server", null)?.let { file("tunnel.server")?.writeText(it) }
+      } else {
+        // Обычный запуск из приложения: запоминаем всё нужное, чтобы в
+        // следующий раз плитка включила VPN сама. Ключи сервера — только
+        // зашифрованными. Не вышло запомнить — подключению это не помеха.
+        try {
+          File(folder, LAST_CONFIG).writeText(Vault.seal(config.readBytes()))
+          prefs.edit()
+            .putString(EXTRA_DIR, folder)
+            .putString(EXTRA_ASSETS, assets)
+            .putString(EXTRA_BYPASS, bypass.joinToString("\n"))
+            .putString(EXTRA_TITLE, title)
+            .apply()
+        } catch (e: Exception) {
+        }
+      }
       val builder = Builder()
         .setSession("CryVPN")
         .setMtu(1500)
@@ -108,7 +166,7 @@ class CryVpnService : VpnService() {
         .addDisallowedApplication(packageName)
       // Приложения, которые человек пустил мимо VPN. Удалённое с телефона
       // приложение пропускаем: из-за него туннель не должен сорваться.
-      for (pkg in intent.getStringArrayExtra(EXTRA_BYPASS) ?: arrayOf()) {
+      for (pkg in bypass) {
         try {
           builder.addDisallowedApplication(pkg)
         } catch (e: Exception) {
@@ -120,7 +178,7 @@ class CryVpnService : VpnService() {
       val pid = try {
         spawnCore(
           core,
-          File(folder, "current.json").path,
+          config.path,
           assets,
           File(folder, "xray.log").path,
           fd
@@ -137,11 +195,15 @@ class CryVpnService : VpnService() {
       corePid = pid
       file("tunnel.on")?.writeText("1")
       CryTileService.refresh(this)
+      // При запуске с плитки открытую конфигурацию убираем сами: ядро её
+      // уже прочло, а приложения, которое обычно это делает, рядом нет.
+      if (last) handler.postDelayed({ config.delete() }, 4000)
       handler.removeCallbacks(watch)
       handler.postDelayed(watch, 2000)
     } catch (e: Throwable) {
       // Throwable, а не Exception: сюда попадает и сбой загрузки помощника.
       file("tunnel.err")?.writeText(e.message ?: "не удалось поднять туннель")
+      if (last) config.delete()
       shutdown()
     }
     return START_NOT_STICKY
@@ -198,7 +260,7 @@ class CryVpnService : VpnService() {
       .setContentTitle("CryVPN подключён")
       // Название сервера — чтобы из шторки было видно, куда подключены.
       .setContentText(if (server.isNotBlank()) server else "Нажмите, чтобы открыть приложение")
-      .setSmallIcon(R.drawable.ic_vpn_key)
+      .setSmallIcon(R.drawable.ic_robot)
       .setContentIntent(open)
       .setOngoing(true)
       .apply {

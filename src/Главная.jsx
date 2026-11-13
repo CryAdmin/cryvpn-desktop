@@ -428,10 +428,23 @@ export default function Главная({ профиль, обновить, вы�
   const подключитьСейчас = useRef(подключить);
   подключитьСейчас.current = подключить;
   useEffect(() => {
-    if (серверы.length === 0) return undefined;
+    // Ждём и список, и выбранный сервер: выбор появляется чуть позже
+    // списка, а просьба с плитки одноразовая — заберёшь раньше времени, и
+    // подключаться будет не к чему.
+    if (серверы.length === 0 || выбран === null) return undefined;
     const проверить = async () => {
       if (document.visibilityState !== "visible") return;
       if (состояниеСейчас.current !== ВЫКЛ) return;
+      // VPN могли включить плиткой, пока окно было свёрнуто или просто
+      // открыто: показываем это, а не «Отключено» при работающем туннеле.
+      if (await invoke("подключено").catch(() => false)) {
+        if (состояниеСейчас.current !== ВЫКЛ) return;
+        const текущий = await invoke("текущий_сервер").catch(() => null);
+        if (текущий !== null) выбрать(текущий);
+        установитьОшибку("");
+        установитьСостояние(ВКЛ);
+        return;
+      }
       const просили = await invoke("с_плитки").catch(() => false);
       if (!просили || состояниеСейчас.current !== ВЫКЛ) return;
       const { выбран: номер } = живое.current;
@@ -440,11 +453,15 @@ export default function Главная({ профиль, обновить, вы�
     проверить();
     document.addEventListener("visibilitychange", проверить);
     window.addEventListener("focus", проверить);
+    // И раз в три секунды, пока выключено: шторку открывают поверх окна, и
+    // ни одно из событий выше при этом может не прийти.
+    const опрос = setInterval(проверить, 3000);
     return () => {
+      clearInterval(опрос);
       document.removeEventListener("visibilitychange", проверить);
       window.removeEventListener("focus", проверить);
     };
-  }, [серверы.length]);
+  }, [серверы.length, выбран === null]);
 
   const переключить = async () => {
     if (состояние === ЖДЁМ || состояние === УХОДИМ) return;
