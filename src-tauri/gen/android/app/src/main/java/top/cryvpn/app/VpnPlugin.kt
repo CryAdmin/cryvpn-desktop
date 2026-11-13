@@ -85,6 +85,22 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
 
     /** Что сделать, когда человек ответил на вопрос об уведомлениях. */
     @Volatile var afterNotificationAnswer: (() -> Unit)? = null
+
+    /** Когда нажали плитку в шторке с просьбой подключиться; 0 — не нажимали. */
+    @Volatile var tileRequestAt = 0L
+  }
+
+  /**
+   * Просили ли с плитки подключиться. Отдаётся один раз и только свежая
+   * просьба: нажатие минутной давности исполнять уже поздно.
+   */
+  @Command
+  fun tile(invoke: Invoke) {
+    val at = tileRequestAt
+    tileRequestAt = 0L
+    val out = JSObject()
+    out.put("connect", at > 0 && System.currentTimeMillis() - at < 60_000)
+    invoke.resolve(out)
   }
 
   /** Установленные приложения со значком запуска, кроме нас самих. */

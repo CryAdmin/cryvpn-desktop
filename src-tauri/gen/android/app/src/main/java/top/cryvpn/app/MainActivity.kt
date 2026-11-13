@@ -1,5 +1,6 @@
 package top.cryvpn.app
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
@@ -16,6 +17,7 @@ class MainActivity : TauriActivity() {
       navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
     )
     super.onCreate(savedInstanceState)
+    noteTileRequest(intent)
     // Окно рисуется под строкой состояния и под жестовой полосой. Фон там
     // наш, тёмный, а само содержимое отодвигаем, чтобы его не перекрывало.
     val root = findViewById<View>(android.R.id.content)
@@ -26,6 +28,20 @@ class MainActivity : TauriActivity() {
       )
       view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
       WindowInsetsCompat.CONSUMED
+    }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    noteTileRequest(intent)
+  }
+
+  /** Нажали плитку в шторке: запоминаем просьбу, приложение её заберёт. */
+  private fun noteTileRequest(intent: Intent?) {
+    if (intent?.action == CryTileService.ACTION_CONNECT) {
+      VpnPlugin.tileRequestAt = System.currentTimeMillis()
+      // Просьба одноразовая: поворот экрана не должен повторить её.
+      intent.action = Intent.ACTION_MAIN
     }
   }
 

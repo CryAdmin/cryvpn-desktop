@@ -77,6 +77,7 @@ class CryVpnService : VpnService() {
       handler.removeCallbacks(watch)
       killCore()
       file("tunnel.on")?.delete()
+      CryTileService.refresh(this)
       if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
       stopSelf(startId)
       return START_NOT_STICKY
@@ -89,6 +90,7 @@ class CryVpnService : VpnService() {
       return START_NOT_STICKY
     }
     dir = File(folder)
+    CryTileService.rememberDir(this, folder)
     killCore()
     file("tunnel.err")?.delete()
     showNotification(intent.getStringExtra(EXTRA_TITLE).orEmpty())
@@ -134,6 +136,7 @@ class CryVpnService : VpnService() {
       if (pid <= 0) throw IllegalStateException("ядро не запустилось (код $pid)")
       corePid = pid
       file("tunnel.on")?.writeText("1")
+      CryTileService.refresh(this)
       handler.removeCallbacks(watch)
       handler.postDelayed(watch, 2000)
     } catch (e: Throwable) {
@@ -168,6 +171,7 @@ class CryVpnService : VpnService() {
     handler.removeCallbacks(watch)
     killCore()
     file("tunnel.on")?.delete()
+    CryTileService.refresh(this)
     stopNow()
   }
 

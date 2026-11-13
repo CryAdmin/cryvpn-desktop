@@ -111,6 +111,20 @@ pub fn опустить() {
     }
 }
 
+#[derive(Deserialize)]
+struct Плитка {
+    connect: bool,
+}
+
+/// Нажимали ли только что плитку в шторке с просьбой подключиться.
+/// Просьба отдаётся один раз.
+pub fn просьба_с_плитки() -> bool {
+    мост()
+        .and_then(|м| м.run_mobile_plugin::<Плитка>("tile", ()).map_err(|e| e.to_string()))
+        .map(|п| п.connect)
+        .unwrap_or(false)
+}
+
 /// Отдаём системе проверенный APK: она покажет окно установки поверх.
 pub async fn установить(пакет: &Path) -> Result<(), String> {
     мост()?
