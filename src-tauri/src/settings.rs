@@ -161,7 +161,44 @@ fn автозапуск(включить: bool) -> Result<(), String> {
     std::fs::write(файл, текст).map_err(|e| format!("не удалось настроить автозапуск: {e}"))
 }
 
-#[cfg(all(not(windows), not(target_os = "macos")))]
+/// Linux: ярлык в папке автозапуска рабочего стола. Так устроен
+/// автозапуск в GNOME, KDE, XFCE и остальных — общий для них стандарт.
+#[cfg(target_os = "linux")]
+fn автозапуск(включить: bool) -> Result<(), String> {
+    let дом = std::env::var("HOME").map_err(|_| "не найдена домашняя папка".to_string())?;
+    let папка = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|п| !п.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(дом).join(".config"))
+        .join("autostart");
+    let файл = папка.join("cryvpn.desktop");
+
+    if !включить {
+        let _ = std::fs::remove_file(файл);
+        return Ok(());
+    }
+
+    // AppImage запускается из временной точки подключения, которая после
+    // выхода исчезает. Настоящий путь к файлу он сообщает сам.
+    let путь = std::env::var("APPIMAGE")
+        .ok()
+        .filter(|п| !п.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::current_exe().ok())
+        .ok_or("не найден путь к приложению")?;
+    let путь = путь.display().to_string();
+    if путь.contains('"') || путь.contains('\n') {
+        return Err("В пути к приложению есть кавычка — автозапуск не настроить".into());
+    }
+    let текст = format!(
+        "[Desktop Entry]\nType=Application\nName=CryVPN\nExec=\"{путь}\"\nIcon=cryvpn\nX-GNOME-Autostart-enabled=true\n"
+    );
+    std::fs::create_dir_all(&папка).map_err(|e| e.to_string())?;
+    std::fs::write(файл, текст).map_err(|e| format!("не удалось настроить автозапуск: {e}"))
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 fn автозапуск(_включить: bool) -> Result<(), String> {
     Ok(())
 }

@@ -107,21 +107,18 @@ pub fn прибрать() {
     }
 }
 
-const ПАКЕТ_ANDROID: &str = "CryVPN-Android.apk";
-
-/// Android: качаем свежий APK и сверяем с контрольной суммой из того же
-/// выпуска. Ставит его не приложение, а система — мы только отдаём ей
-/// проверенный файл.
-#[cfg_attr(not(target_os = "android"), allow(dead_code))]
-pub async fn скачать_apk() -> Result<PathBuf, String> {
+/// Качаем файл выпуска и сверяем с контрольной суммой из того же выпуска.
+/// Так обновляются Android и Linux: у каждого свой файл и своя сумма рядом.
+#[cfg_attr(not(any(target_os = "android", target_os = "linux")), allow(dead_code))]
+async fn скачать_с_суммой(имя: &str) -> Result<PathBuf, String> {
     let свежая = описание().await?;
     if !новее(&свежая.version, env!("CARGO_PKG_VERSION")) {
         return Err("У вас уже последняя версия".into());
     }
 
-    // Файл суммы — одна строка вида «<64 знака>  CryVPN-Android.apk».
+    // Файл суммы — одна строка вида «<64 знака>  <имя файла>».
     let запись = клиент(20)?
-        .get(format!("{ИСТОЧНИК}{ПАКЕТ_ANDROID}.sha256"))
+        .get(format!("{ИСТОЧНИК}{имя}.sha256"))
         .send()
         .await
         .map_err(|_| "Нет связи с сервером обновлений".to_string())?
@@ -134,7 +131,7 @@ pub async fn скачать_apk() -> Result<PathBuf, String> {
     }
 
     let ответ = клиент(600)?
-        .get(format!("{ИСТОЧНИК}{ПАКЕТ_ANDROID}"))
+        .get(format!("{ИСТОЧНИК}{имя}"))
         .send()
         .await
         .map_err(|_| "Не удалось скачать обновление".to_string())?;
@@ -152,9 +149,122 @@ pub async fn скачать_apk() -> Result<PathBuf, String> {
         .ok_or_else(|| "не найдена папка данных приложения".to_string())?
         .join("update");
     std::fs::create_dir_all(&папка).map_err(|e| e.to_string())?;
-    let путь = папка.join(ПАКЕТ_ANDROID);
+    let путь = папка.join(имя);
     std::fs::write(&путь, &байты).map_err(|e| e.to_string())?;
     Ok(путь)
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+const ПАКЕТ_ANDROID: &str = "CryVPN-Android.apk";
+
+/// Android: качаем свежий APK и сверяем с контрольной суммой из того же
+/// выпуска. Ставит его не приложение, а система — мы только отдаём ей
+/// проверенный файл.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub async fn скачать_apk() -> Result<PathBuf, String> {
+    скачать_с_суммой(ПАКЕТ_ANDROID).await
+}
+
+// ------------------------------------------------------------------ Linux
+
+/// В каком виде приложение стоит на Linux — от этого зависит, как его
+/// обновлять.
+#[cfg(target_os = "linux")]
+pub enum Упаковка {
+    /// Один файл, запускается откуда угодно. Настоящий путь к файлу он
+    /// сообщает сам: работает приложение из временной точки подключения.
+    AppImage(PathBuf),
+    /// Пакет .deb, поставленный в систему (Ubuntu, Debian, Mint).
+    Deb,
+    /// Пакет .rpm, поставленный в систему (Fedora, openSUSE и родня).
+    Rpm,
+}
+
+#[cfg(target_os = "linux")]
+pub fn упаковка() -> Option<Упаковка> {
+    if let Some(файл) = std::env::var_os("APPIMAGE").filter(|п| !п.is_empty()) {
+        return Some(Упаковка::AppImage(PathBuf::from(файл)));
+    }
+    let мы = std::env::current_exe().ok()?;
+    if !мы.starts_with("/usr") {
+        return None;
+    }
+    // Спрашиваем у самой системы, чей это файл: на одной машине могут
+    // стоять обе программы для пакетов, а поставлены мы только одной.
+    let чей = |программа: &str, довод: &str| {
+        std::process::Command::new(программа)
+            .arg(довод)
+            .arg(&мы)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|итог| итог.success())
+            .unwrap_or(false)
+    };
+    if чей("/usr/bin/dpkg", "-S") {
+        Some(Упаковка::Deb)
+    } else if чей("/usr/bin/rpm", "-qf") {
+        Some(Упаковка::Rpm)
+    } else {
+        None
+    }
+}
+
+/// Поставить скачанный пакет средствами системы: она спросит пароль.
+#[cfg(target_os = "linux")]
+fn поставить_пакет(программа: &str, доводы: &[&str], пакет: &PathBuf) -> Result<PathBuf, String> {
+    // Свой путь запоминаем до установки: после неё система отвечает
+    // «/usr/bin/cryvpn (deleted)» — прежний файл заменён, а мы всё ещё он.
+    // С таким путём обновлённое приложение не запустилось бы.
+    let мы = std::env::current_exe().map_err(|e| e.to_string())?;
+    let итог = std::process::Command::new("pkexec")
+        .arg(программа)
+        .args(доводы)
+        .arg(пакет)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|_| "Не найден pkexec — обновить пакет нечем".to_string())?;
+    let _ = std::fs::remove_file(пакет);
+    match итог.status.code() {
+        Some(0) => Ok(мы),
+        Some(126) | Some(127) => Err("Обновление отменено: нужен пароль администратора".into()),
+        _ => Err("Система не смогла поставить обновление".into()),
+    }
+}
+
+/// Linux: скачать, проверить и поставить поверх. Отдаём путь, по которому
+/// запускать обновлённое приложение.
+///
+/// AppImage заменяем сами: это файл человека в его папке. Пакет .deb
+/// ставит система — на это нужны права, и она спросит пароль своим окном.
+#[cfg(target_os = "linux")]
+pub async fn обновить_linux() -> Result<PathBuf, String> {
+    use std::os::unix::fs::PermissionsExt;
+    match упаковка().ok_or("Эта сборка не обновляется сама — скачайте новую версию с GitHub")? {
+        Упаковка::AppImage(файл) => {
+            let свежий = скачать_с_суммой("CryVPN-Linux.AppImage").await?;
+            // Сначала кладём рядом, потом переименовываем: замена одним
+            // движением, и оборванная запись не оставит человека без приложения.
+            let рядом = файл.with_extension("AppImage.new");
+            let беда = |e: std::io::Error| {
+                format!("Не удалось заменить файл приложения ({}): {e}", файл.display())
+            };
+            std::fs::copy(&свежий, &рядом).map_err(беда)?;
+            std::fs::set_permissions(&рядом, std::fs::Permissions::from_mode(0o755)).map_err(беда)?;
+            std::fs::rename(&рядом, &файл).map_err(беда)?;
+            let _ = std::fs::remove_file(свежий);
+            Ok(файл)
+        }
+        Упаковка::Deb => {
+            let пакет = скачать_с_суммой("CryVPN-Linux.deb").await?;
+            поставить_пакет("/usr/bin/dpkg", &["-i"], &пакет)
+        }
+        Упаковка::Rpm => {
+            let пакет = скачать_с_суммой("CryVPN-Linux.rpm").await?;
+            поставить_пакет("/usr/bin/rpm", &["-U", "--force"], &пакет)
+        }
+    }
 }
 
 /// Запускаем установщик молча; после установки он сам откроет приложение.
@@ -170,6 +280,7 @@ pub fn поставить(установщик: &PathBuf) -> Result<(), String> 
 }
 
 #[cfg(not(windows))]
+#[cfg_attr(target_os = "linux", allow(dead_code))]
 pub fn поставить(_установщик: &PathBuf) -> Result<(), String> {
     Err("Обновление одной кнопкой есть только в Windows".into())
 }

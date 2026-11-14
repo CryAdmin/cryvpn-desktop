@@ -1,0 +1,51 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "CryVPN",
+        "width": 700,
+        "height": 990,
+        "minWidth": 600,
+        "minHeight": 760,
+        "resizable": true,
+        "center": true,
+        "decorations": false
+      }
+    ]
+  },
+  "bundle": {
+    "targets": [
+      "deb",
+      "rpm",
+      "appimage"
+    ],
+    "category": "Utility",
+    "shortDescription": "CryVPN",
+    "longDescription": "VPN-клиент CryVPN",
+    "resources": {
+      "resources-linux/xray": "resources/xray",
+      "resources-linux/geoip.dat": "resources/geoip.dat",
+      "resources-linux/geosite.dat": "resources/geosite.dat"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "pkexec | policykit-1",
+          "iproute2",
+          "util-linux",
+          "libcap2-bin"
+        ],
+        "postInstallScript": "../scripts/linux-postinst.sh"
+      },
+      "rpm": {
+        "depends": [
+          "polkit",
+          "iproute",
+          "util-linux",
+          "libcap"
+        ],
+        "postInstallScript": "../scripts/linux-postinst.sh"
+      }
+    }
+  }
+}

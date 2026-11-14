@@ -104,6 +104,20 @@
                 android:resource="@xml/cry_widget_info" />
         </receiver>
 
+        <!-- Тот же виджет на одну клетку: одна кнопка без подписи. -->
+        <receiver
+            android:name=".CryWidgetSmall"
+            android:process=":vpn"
+            android:exported="true"
+            android:label="CryVPN · кнопка">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/cry_widget_small_info" />
+        </receiver>
+
         <service
             android:name=".CryVpnService"
             android:process=":vpn"

@@ -1,6 +1,6 @@
 [package]
 name = "cryvpn"
-version = "0.1.20"
+version = "0.1.21"
 description = "CryVPN desktop client"
 authors = ["CryVPN"]
 license = "GPL-3.0-only"
@@ -44,6 +44,14 @@ tokio = { version = "1", features = ["sync", "time", "net", "rt", "rt-multi-thre
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 # Окно выбора файла — программа, которую человек пускает мимо VPN.
 tauri-plugin-dialog = "2"
+
+# Linux: вход и список серверов шифруем, а ключ держим в связке ключей
+# рабочего стола.
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", default-features = false, features = ["sync-secret-service", "crypto-rust"] }
+aes-gcm = "0.10"
+# Чтение прав, выданных файлу ядра.
+libc = "0.2"
 
 # Android: передача туннеля дочернему процессу.
 [target.'cfg(target_os = "android")'.dependencies]

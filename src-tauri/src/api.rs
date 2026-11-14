@@ -85,7 +85,9 @@ async fn послать(
 const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-macOS/", env!("CARGO_PKG_VERSION"));
 #[cfg(target_os = "android")]
 const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-Android/", env!("CARGO_PKG_VERSION"));
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+#[cfg(target_os = "linux")]
+const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-Linux/", env!("CARGO_PKG_VERSION"));
+#[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux")))]
 const ПРЕДСТАВЛЕНИЕ: &str = concat!("CryVPN-Windows/", env!("CARGO_PKG_VERSION"));
 
 /// Клиент живёт всё время работы приложения: в нём хранилище кук.

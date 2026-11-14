@@ -73,7 +73,25 @@ pub fn номер() -> String {
     запасной()
 }
 
-#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "android")))]
+/// Linux: номер машины из `/etc/machine-id`. Сам номер наружу не отдаём —
+/// система просит этого не делать, он общий для всех программ. Отдаём
+/// его отпечаток, свой у нашего приложения.
+#[cfg(target_os = "linux")]
+pub fn номер() -> String {
+    use sha2::{Digest, Sha256};
+    let машина = std::fs::read_to_string("/etc/machine-id")
+        .or_else(|_| std::fs::read_to_string("/var/lib/dbus/machine-id"))
+        .unwrap_or_default();
+    let машина = машина.trim();
+    if машина.len() >= 10 {
+        let отпечаток = Sha256::digest(format!("top.cryvpn.app:{машина}").as_bytes());
+        let текст: String = отпечаток.iter().take(16).map(|б| format!("{б:02x}")).collect();
+        return format!("linux-{текст}");
+    }
+    запасной()
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux")))]
 pub fn номер() -> String {
     запасной()
 }
@@ -106,6 +124,15 @@ pub fn имя_компьютера() -> String {
             .output()
         {
             let имя = String::from_utf8_lossy(&вывод.stdout).trim().to_string();
+            if !имя.is_empty() {
+                return имя;
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(имя) = std::fs::read_to_string("/etc/hostname") {
+            let имя = имя.trim().to_string();
             if !имя.is_empty() {
                 return имя;
             }
@@ -187,7 +214,21 @@ fn описание_как_есть() -> (String, String, String) {
         let с = crate::android::сведения();
         return ("Android".to_string(), с.release, с.model);
     }
-    #[cfg(all(not(target_os = "macos"), not(target_os = "android")))]
+    #[cfg(target_os = "linux")]
+    {
+        // «Ubuntu 24.04.1 LTS», «Fedora Linux 41» — как система зовёт себя сама.
+        let версия = std::fs::read_to_string("/etc/os-release")
+            .ok()
+            .and_then(|текст| {
+                текст.lines().find_map(|строка| {
+                    строка.strip_prefix("PRETTY_NAME=").map(|з| з.trim().trim_matches('"').to_string())
+                })
+            })
+            .filter(|в| !в.is_empty())
+            .unwrap_or_else(|| "unknown".into());
+        return ("Linux".to_string(), версия, имя_компьютера());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux")))]
     {
         let ос = if cfg!(windows) { "Windows" } else { "Desktop" };
         let версия = std::env::var("OS").unwrap_or_else(|_| "unknown".into());

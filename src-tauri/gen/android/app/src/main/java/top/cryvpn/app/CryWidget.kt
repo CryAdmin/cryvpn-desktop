@@ -23,7 +23,7 @@ import java.io.File
  * Что именно сделает нажатие, решаем заранее, когда рисуем виджет: открыть
  * окно из фонового приёмника система не даёт, а из самого нажатия — даёт.
  */
-class CryWidget : AppWidgetProvider() {
+open class CryWidget : AppWidgetProvider() {
   companion object {
     private const val ACTION_TOGGLE = "top.cryvpn.app.WIDGET_TOGGLE"
     private const val PREFS = "cryvpn_vpn"
@@ -51,35 +51,45 @@ class CryWidget : AppWidgetProvider() {
     fun refresh(context: Context, active: Boolean? = null) {
       try {
         val manager = AppWidgetManager.getInstance(context)
-        val ids = manager.getAppWidgetIds(ComponentName(context, CryWidget::class.java))
-        if (ids.isEmpty()) return
+        val big = manager.getAppWidgetIds(ComponentName(context, CryWidget::class.java))
+        val small = manager.getAppWidgetIds(ComponentName(context, CryWidgetSmall::class.java))
+        if (big.isEmpty() && small.isEmpty()) return
         val on = active ?: tunnelUp(context)
-        for (id in ids) manager.updateAppWidget(id, views(context, on, manager.getAppWidgetOptions(id)))
+        for (id in big) manager.updateAppWidget(id, views(context, on, manager.getAppWidgetOptions(id), false))
+        for (id in small) manager.updateAppWidget(id, views(context, on, null, true))
       } catch (e: Exception) {
         // Виджет могли не поставить, а оболочка рабочего стола — не ответить.
       }
     }
 
-    private fun views(context: Context, on: Boolean, options: Bundle?): RemoteViews {
-      val views = RemoteViews(context.packageName, R.layout.cry_widget)
+    private fun views(context: Context, on: Boolean, options: Bundle?, small: Boolean): RemoteViews {
+      val views = RemoteViews(context.packageName, if (small) R.layout.cry_widget_small else R.layout.cry_widget)
       views.setImageViewResource(R.id.widget_icon, if (on) R.drawable.widget_orb_on else R.drawable.widget_orb_off)
       views.setInt(R.id.widget_root, "setBackgroundResource", if (on) R.drawable.widget_bg_on else R.drawable.widget_bg)
+      if (!small) decorate(views, on, options)
+      views.setOnClickPendingIntent(R.id.widget_root, click(context, on))
+      return views
+    }
+
+    /** Подпись большого виджета. */
+    private fun decorate(views: RemoteViews, on: Boolean, options: Bundle?) {
       views.setTextViewText(R.id.widget_state, if (on) "● Включён" else "○ Выключен")
       views.setTextColor(R.id.widget_state, if (on) GREEN else 0x99FFFFFF.toInt())
       // В одну клетку подпись не помещается — остаётся одна голова робота.
       val width = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
       views.setViewVisibility(R.id.widget_text, if (width in 1..99) View.GONE else View.VISIBLE)
+    }
 
+    /** Что сделает нажатие: переключит VPN само или откроет приложение. */
+    private fun click(context: Context, on: Boolean): PendingIntent {
       val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-      val click = if (on || canStartSilently(context)) {
+      return if (on || canStartSilently(context)) {
         PendingIntent.getBroadcast(
           context, 3, Intent(context, CryWidget::class.java).setAction(ACTION_TOGGLE), flags
         )
       } else {
         PendingIntent.getActivity(context, 4, openApp(context), flags)
       }
-      views.setOnClickPendingIntent(R.id.widget_root, click)
-      return views
     }
   }
 

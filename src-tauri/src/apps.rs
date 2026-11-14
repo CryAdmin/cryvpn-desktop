@@ -61,13 +61,64 @@ pub fn запущенные() -> Vec<Программа> {
     crate::android::приложения()
 }
 
-#[cfg(all(not(windows), not(target_os = "android")))]
+/// Linux: программы этого человека, запущенные в его рабочем столе.
+///
+/// Берём только свои процессы и только те, что видят экран: служб и
+/// фоновых помощников в системе сотни, и в списке «что пустить мимо VPN»
+/// им делать нечего. Ядро к тому же и не смогло бы узнать трафик чужих
+/// процессов — оно работает от имени человека.
+#[cfg(target_os = "linux")]
+pub fn запущенные() -> Vec<Программа> {
+    use std::os::unix::fs::MetadataExt;
+    let Some(кто) = crate::paths::папка_данных()
+        .and_then(|п| std::fs::metadata(п).ok())
+        .map(|м| м.uid())
+    else {
+        return Vec::new();
+    };
+    let свой = std::env::current_exe().ok();
+    let mut пути = std::collections::BTreeSet::new();
+    for запись in std::fs::read_dir("/proc").into_iter().flatten().flatten() {
+        let папка = запись.path();
+        let числовая = запись.file_name().to_string_lossy().chars().all(|з| з.is_ascii_digit());
+        if !числовая || std::fs::metadata(&папка).map(|м| м.uid()).ok() != Some(кто) {
+            continue;
+        }
+        let Ok(файл) = std::fs::read_link(папка.join("exe")) else { continue };
+        if Some(&файл) == свой.as_ref() {
+            continue; // приложение VPN мимо VPN — бессмыслица
+        }
+        let путь = файл.display().to_string();
+        // Служебное: помощники рабочего стола и самой системы.
+        if путь.ends_with(" (deleted)")
+            || путь.starts_with("/usr/libexec/")
+            || путь.starts_with("/usr/lib/systemd/")
+            || путь.contains("/xray")
+        {
+            continue;
+        }
+        // Видит ли процесс экран: по переменным, с которыми его запустили.
+        let Ok(среда) = std::fs::read(папка.join("environ")) else { continue };
+        let с_экраном = среда
+            .split(|б| *б == 0)
+            .any(|п| п.starts_with(b"DISPLAY=") || п.starts_with(b"WAYLAND_DISPLAY="));
+        if с_экраном {
+            пути.insert(путь);
+        }
+    }
+    let mut список: Vec<Программа> =
+        пути.into_iter().map(|путь| Программа { имя: имя_из_пути(&путь), путь }).collect();
+    список.sort_by_key(|п| п.имя.to_lowercase());
+    список
+}
+
+#[cfg(not(any(windows, target_os = "android", target_os = "linux")))]
 pub fn запущенные() -> Vec<Программа> {
     Vec::new()
 }
 
 /// Пути в том виде, в каком их сравнивает ядро: с прямыми косыми.
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
 pub fn для_ядра(программы: &[Программа]) -> Vec<String> {
     программы
         .iter()

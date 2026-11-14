@@ -64,6 +64,35 @@ fn погасить_туннель(приложение: &tauri::AppHandle) {
     }
 }
 
+/// Показывает ли рабочий стол значки возле часов.
+///
+/// В Windows и macOS — всегда. В Linux — не везде: GNOME без расширения
+/// их не рисует вовсе. Там значок «создаётся» без ошибки, но его не видно,
+/// и окно, спрятанное по крестику, человеку было бы нечем достать и нечем
+/// закрыть приложение. Спрашиваем у рабочего стола, есть ли у него тот,
+/// кто рисует значки; нет — крестик закрывает приложение по-настоящему.
+#[cfg(desktop)]
+fn значки_показываются() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let ответ = std::process::Command::new("gdbus")
+            .args([
+                "call", "--session",
+                "--dest", "org.freedesktop.DBus",
+                "--object-path", "/org/freedesktop/DBus",
+                "--method", "org.freedesktop.DBus.NameHasOwner",
+                "org.kde.StatusNotifierWatcher",
+            ])
+            .stdin(std::process::Stdio::null())
+            .output();
+        // Спросить не вышло — считаем, что значков нет: закрыть приложение
+        // честно лучше, чем спрятать его туда, откуда не достать.
+        return ответ.is_ok_and(|в| String::from_utf8_lossy(&в.stdout).contains("true"));
+    }
+    #[cfg(not(target_os = "linux"))]
+    true
+}
+
 /// Значок возле часов: по нему приложение открывают и из него же выходят.
 /// Не получилось создать — не страшно, просто крестик будет закрывать
 /// приложение, как раньше.
@@ -272,7 +301,12 @@ async fn обновление() -> Result<Option<String>, String> {
     // Windows обновляется сама, одной кнопкой. Android о новой версии
     // только сообщает и отдаёт человеку свежий APK — ставит его система.
     // На Mac приложение не распространяется, проверять нечего.
-    if !cfg!(any(windows, target_os = "android")) {
+    // Linux обновляется сам, если стоит как AppImage или пакет .deb.
+    #[cfg(target_os = "linux")]
+    if update::упаковка().is_none() {
+        return Ok(None);
+    }
+    if !cfg!(any(windows, target_os = "android", target_os = "linux")) {
         return Ok(None);
     }
     Ok(update::проверить().await)
@@ -294,7 +328,23 @@ async fn обновиться(
         let пакет = update::скачать_apk().await?;
         return android::установить(&пакет).await;
     }
-    #[cfg(not(target_os = "android"))]
+    // Linux: файл скачан, проверен и поставлен — гасим туннель и
+    // запускаем новую версию. Запуск чуть откладываем: пока жива эта
+    // копия, новая приняла бы себя за вторую и тут же закрылась.
+    #[cfg(target_os = "linux")]
+    {
+        let новое = update::обновить_linux().await?;
+        связь.0.lock().await.выключить_до_конца();
+        let _ = std::process::Command::new("/bin/sh")
+            .args(["-c", "sleep 1; exec \"$0\"", &новое.display().to_string()])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        приложение.exit(0);
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "android", target_os = "linux")))]
     {
         let установщик = update::скачать().await?;
         // Туннель гасим только когда файл уже скачан и проверен: если
@@ -480,12 +530,14 @@ async fn запущенные_программы() -> Result<Vec<apps::Прог�
 async fn выбрать_программу(приложение: tauri::AppHandle) -> Result<Option<apps::Программа>, String> {
     use tauri_plugin_dialog::DialogExt;
     let выбор = tokio::task::spawn_blocking(move || {
-        приложение
+        let окно = приложение
             .dialog()
             .file()
-            .set_title("Программа, которая пойдёт мимо VPN")
-            .add_filter("Программы", &["exe"])
-            .blocking_pick_file()
+            .set_title("Программа, которая пойдёт мимо VPN");
+        // В Windows программы узнаются по расширению; в Linux его нет.
+        #[cfg(windows)]
+        let окно = окно.add_filter("Программы", &["exe"]);
+        окно.blocking_pick_file()
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -560,6 +612,14 @@ pub fn run() {
                     принять_ссылку(&ручка, адрес.as_str());
                 }
             });
+            // Linux: ссылки cryvpn:// привязываем к приложению сами, при
+            // каждом запуске. У AppImage установщика нет, привязать больше
+            // некому; а ярлык из пакета .deb запускает приложение без
+            // адреса ссылки, и кнопка «Открыть в CryVPN» ничего бы не делала.
+            #[cfg(target_os = "linux")]
+            if let Err(беда) = приложение.deep_link().register_all() {
+                eprintln!("[CryVPN] ссылки cryvpn:// не привязаны: {беда}");
+            }
             if let Ok(Some(адреса)) = приложение.deep_link().get_current() {
                 for адрес in адреса {
                     принять_ссылку(приложение.handle(), адрес.as_str());
@@ -626,7 +686,8 @@ pub fn run() {
             #[cfg(desktop)]
             if let tauri::WindowEvent::CloseRequested { api, .. } = _событие {
                 let прятать = ЗНАЧОК_ЕСТЬ.load(std::sync::atomic::Ordering::Relaxed)
-                    && settings::прочитать().в_трее;
+                    && settings::прочитать().в_трее
+                    && значки_показываются();
                 if прятать {
                     api.prevent_close();
                     let _ = _окно.hide();

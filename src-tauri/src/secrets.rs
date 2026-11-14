@@ -10,6 +10,12 @@
 //! macOS:   кладём в Связку ключей; в файле только пометка, где искать.
 //! Android: шифруем ключом из защищённого хранилища устройства; ключ из
 //!          него не извлекается, файл без телефона не расшифровать.
+//! Linux:   шифруем AES-256-GCM, а ключ держим в связке ключей рабочего
+//!          стола (GNOME Keyring, KWallet и другие с тем же интерфейсом).
+//!          Связка заперта — не сохраняем. Связки в системе нет вовсе —
+//!          ключ кладём файлом рядом с данными, закрытым от других
+//!          пользователей: это слабее (ключ и замок лежат вместе), но
+//!          иначе на таких системах входить пришлось бы при каждом запуске.
 
 fn файл(имя: &str) -> Option<std::path::PathBuf> {
     Some(crate::paths::папка_данных()?.join(format!("{имя}.dat")))
@@ -111,7 +117,7 @@ fn крипто(что: &str, ввод: &str) -> Option<String> {
 }
 
 /// Только знаки base64 — ничего, что PowerShell мог бы принять за код.
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
 fn только_base64(текст: &str) -> bool {
     !текст.is_empty()
         // Потолок — от случайного мусора, а не от больших записей: список
@@ -120,7 +126,7 @@ fn только_base64(текст: &str) -> bool {
         && текст.bytes().all(|б| б.is_ascii_alphanumeric() || б == b'+' || б == b'/' || б == b'=')
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
 fn в_base64(байты: &[u8]) -> String {
     const АЛФАВИТ: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut итог = String::with_capacity(байты.len().div_ceil(3) * 4);
@@ -209,14 +215,148 @@ fn открыть(имя: &str, закрытое: &str) -> Option<String> {
 
 // ----------------------------------------------------------------- прочее
 
-#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "android")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux")))]
 fn закрыть(_имя: &str, _открытое: &str) -> Option<String> {
     None
 }
 
-#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "android")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux")))]
 fn открыть(_имя: &str, _закрытое: &str) -> Option<String> {
     None
+}
+
+// ------------------------------------------------------------------ Linux
+
+// В связке лежит один ключ на всё приложение, а сами записи — в файлах,
+// зашифрованные им. Так сделано из-за размера: список серверов занимает
+// сотни килобайт, связки на такое не рассчитаны.
+
+/// Ключ шифрования из связки ключей; при первом обращении создаётся.
+/// Помним его до конца работы: каждое обращение к связке — это разговор
+/// с другой программой, а записей мы читаем несколько подряд.
+#[cfg(target_os = "linux")]
+fn ключ() -> Option<[u8; 32]> {
+    use aes_gcm::aead::{KeyInit, OsRng};
+    static КЛЮЧ: std::sync::Mutex<Option<[u8; 32]>> = std::sync::Mutex::new(None);
+    let mut помним = КЛЮЧ.lock().ok()?;
+    if let Some(ключ) = *помним {
+        return Some(ключ);
+    }
+    // Ключ файлом заведён раньше — значит, связки на этой машине нет,
+    // и всё сохранённое зашифровано им. Держимся его и дальше.
+    let ключ: [u8; 32] = if let Some(из_файла) = ключ_из_файла() {
+        из_файла
+    } else {
+        let из_связки = keyring::Entry::new("top.cryvpn.app", "cryvpn").and_then(|запись| {
+            match запись.get_password() {
+                Ok(текст) => Ok(Some(текст)),
+                Err(keyring::Error::NoEntry) => {
+                    let новый: [u8; 32] = aes_gcm::Aes256Gcm::generate_key(OsRng).into();
+                    запись.set_password(&в_base64(&новый)).map(|_| Some(в_base64(&новый)))
+                }
+                Err(беда) => Err(беда),
+            }
+        });
+        match из_связки {
+            Ok(Some(текст)) => crate::api::base64_в_байты(текст.trim())?.try_into().ok()?,
+            // Связка есть, но заперта: новый ключ не заводим — он затёр бы
+            // прежний, и всё сохранённое стало бы нечитаемым.
+            _ if связка_есть() => return None,
+            // Связки нет вовсе — ключ файлом.
+            _ => завести_ключ_файлом()?,
+        }
+    };
+    *помним = Some(ключ);
+    Some(ключ)
+}
+
+#[cfg(target_os = "linux")]
+fn файл_ключа() -> Option<std::path::PathBuf> {
+    Some(crate::paths::папка_данных()?.join("key.bin"))
+}
+
+#[cfg(target_os = "linux")]
+fn ключ_из_файла() -> Option<[u8; 32]> {
+    std::fs::read(файл_ключа()?).ok()?.try_into().ok()
+}
+
+/// Ключ файлом, закрытым от других пользователей машины.
+#[cfg(target_os = "linux")]
+fn завести_ключ_файлом() -> Option<[u8; 32]> {
+    use aes_gcm::aead::{KeyInit, OsRng};
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let новый: [u8; 32] = aes_gcm::Aes256Gcm::generate_key(OsRng).into();
+    // Права задаём при создании, а не после: между двумя шагами файл
+    // успел бы побыть открытым для всех.
+    let mut файл = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(файл_ключа()?)
+        .ok()?;
+    файл.write_all(&новый).ok()?;
+    Some(новый)
+}
+
+/// Есть ли в системе связка ключей: запущена или умеет запускаться по
+/// первому обращению. Не смогли спросить — считаем, что нет: без шины
+/// сообщений рабочего стола связке взяться неоткуда.
+#[cfg(target_os = "linux")]
+fn связка_есть() -> bool {
+    let спросить = |способ: &str, довод: Option<&str>| {
+        let mut команда = std::process::Command::new("gdbus");
+        команда.args([
+            "call", "--session",
+            "--dest", "org.freedesktop.DBus",
+            "--object-path", "/org/freedesktop/DBus",
+            "--method", способ,
+        ]);
+        if let Some(довод) = довод {
+            команда.arg(довод);
+        }
+        команда
+            .stdin(std::process::Stdio::null())
+            .output()
+            .map(|в| String::from_utf8_lossy(&в.stdout).to_string())
+            .unwrap_or_default()
+    };
+    спросить("org.freedesktop.DBus.NameHasOwner", Some("org.freedesktop.secrets")).contains("true")
+        || спросить("org.freedesktop.DBus.ListActivatableNames", None).contains("org.freedesktop.secrets")
+}
+
+#[cfg(target_os = "linux")]
+fn закрыть(имя: &str, открытое: &str) -> Option<String> {
+    use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng, Payload};
+    let шифр = aes_gcm::Aes256Gcm::new_from_slice(&ключ()?).ok()?;
+    let затравка = aes_gcm::Aes256Gcm::generate_nonce(&mut OsRng);
+    // Имя записи входит в проверку целостности: файл сессии, подложенный
+    // на место файла подписки, не расшифруется.
+    let закрыто = шифр
+        .encrypt(&затравка, Payload { msg: открытое.as_bytes(), aad: имя.as_bytes() })
+        .ok()?;
+    let mut всё = затравка.to_vec();
+    всё.extend_from_slice(&закрыто);
+    Some(format!("aesgcm:v1:{}", в_base64(&всё)))
+}
+
+#[cfg(target_os = "linux")]
+fn открыть(имя: &str, закрытое: &str) -> Option<String> {
+    use aes_gcm::aead::{Aead, KeyInit, Payload};
+    let тело = закрытое.strip_prefix("aesgcm:v1:")?;
+    if !только_base64(тело) {
+        return None;
+    }
+    let всё = crate::api::base64_в_байты(тело)?;
+    if всё.len() < 12 + 16 {
+        return None;
+    }
+    let (затравка, закрыто) = всё.split_at(12);
+    let шифр = aes_gcm::Aes256Gcm::new_from_slice(&ключ()?).ok()?;
+    let открыто = шифр
+        .decrypt(aes_gcm::Nonce::from_slice(затравка), Payload { msg: закрыто, aad: имя.as_bytes() })
+        .ok()?;
+    String::from_utf8(открыто).ok()
 }
 
 // ---------------------------------------------------------------- Android

@@ -16,6 +16,7 @@ src-tauri/target/
 # Собираются скриптом scripts/resources.ps1 на машине сборки
 src-tauri/resources/
 src-tauri/resources-macos/
+src-tauri/resources-linux/
 
 # локальные заметки и настройки инструментов
 CLAUDE.md
