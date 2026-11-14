@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Виджет на рабочий стол: нажал — VPN включился или выключился. -->
+<!-- Клетка рабочего стола высокая, а плитка нужна приплюснутая: снаружи
+     прозрачная рамка на всю клетку, внутри плитка своей высоты по центру. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<LinearLayout
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="60dp"
+    android:layout_gravity="center"
+    android:background="@drawable/widget_bg"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:paddingStart="4dp"
+    android:paddingEnd="12dp">
+
+    <ImageView
+        android:id="@+id/widget_icon"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        android:contentDescription="CryVPN"
+        android:src="@drawable/widget_orb_off" />
+
+    <LinearLayout
+        android:id="@+id/widget_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:text="CryVPN"
+            android:shadowColor="#99000000"
+            android:shadowDy="2"
+            android:shadowRadius="4"
+            android:textColor="#FFFFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_state"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:text="Выключен"
+            android:textColor="#99FFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>
+</FrameLayout>

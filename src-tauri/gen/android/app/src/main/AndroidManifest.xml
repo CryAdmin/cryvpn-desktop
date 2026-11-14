@@ -95,13 +95,27 @@
             android:name=".CryWidget"
             android:process=":vpn"
             android:exported="true"
-            android:label="CryVPN">
+            android:label="CryVPN · высокий">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/cry_widget_info" />
+        </receiver>
+
+        <!-- Тот же виджет узкой плиткой: подпись есть, высота меньше. -->
+        <receiver
+            android:name=".CryWidgetFlat"
+            android:process=":vpn"
+            android:exported="true"
+            android:label="CryVPN · узкий">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/cry_widget_flat_info" />
         </receiver>
 
         <!-- Тот же виджет на одну клетку: одна кнопка без подписи. -->

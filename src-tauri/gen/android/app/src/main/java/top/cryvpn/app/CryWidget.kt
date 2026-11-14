@@ -51,19 +51,31 @@ open class CryWidget : AppWidgetProvider() {
     fun refresh(context: Context, active: Boolean? = null) {
       try {
         val manager = AppWidgetManager.getInstance(context)
-        val big = manager.getAppWidgetIds(ComponentName(context, CryWidget::class.java))
-        val small = manager.getAppWidgetIds(ComponentName(context, CryWidgetSmall::class.java))
-        if (big.isEmpty() && small.isEmpty()) return
-        val on = active ?: tunnelUp(context)
-        for (id in big) manager.updateAppWidget(id, views(context, on, manager.getAppWidgetOptions(id), false))
-        for (id in small) manager.updateAppWidget(id, views(context, on, null, true))
+        // Три вида одного виджета: высокая плитка, узкая плитка и кнопка.
+        val kinds = listOf(
+          CryWidget::class.java to R.layout.cry_widget,
+          CryWidgetFlat::class.java to R.layout.cry_widget_flat,
+          CryWidgetSmall::class.java to R.layout.cry_widget_small,
+        )
+        var on: Boolean? = active
+        for ((kind, layout) in kinds) {
+          val ids = manager.getAppWidgetIds(ComponentName(context, kind))
+          if (ids.isEmpty()) continue
+          val state = on ?: tunnelUp(context).also { on = it }
+          val small = layout == R.layout.cry_widget_small
+          for (id in ids) {
+            val options = if (small) null else manager.getAppWidgetOptions(id)
+            manager.updateAppWidget(id, views(context, state, options, layout))
+          }
+        }
       } catch (e: Exception) {
         // Виджет могли не поставить, а оболочка рабочего стола — не ответить.
       }
     }
 
-    private fun views(context: Context, on: Boolean, options: Bundle?, small: Boolean): RemoteViews {
-      val views = RemoteViews(context.packageName, if (small) R.layout.cry_widget_small else R.layout.cry_widget)
+    private fun views(context: Context, on: Boolean, options: Bundle?, layout: Int): RemoteViews {
+      val small = layout == R.layout.cry_widget_small
+      val views = RemoteViews(context.packageName, layout)
       views.setImageViewResource(R.id.widget_icon, if (on) R.drawable.widget_orb_on else R.drawable.widget_orb_off)
       views.setInt(R.id.widget_root, "setBackgroundResource", if (on) R.drawable.widget_bg_on else R.drawable.widget_bg)
       if (!small) decorate(views, on, options)

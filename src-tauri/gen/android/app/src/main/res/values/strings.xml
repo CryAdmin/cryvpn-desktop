@@ -3,4 +3,5 @@
     <string name="main_activity_title">"CryVPN"</string>
     <string name="widget_description">"Включить и выключить VPN одним нажатием"</string>
     <string name="widget_small_description">"Кнопка VPN на одну клетку"</string>
+    <string name="widget_flat_description">"Узкая плитка: включить и выключить VPN одним нажатием"</string>
 </resources>
