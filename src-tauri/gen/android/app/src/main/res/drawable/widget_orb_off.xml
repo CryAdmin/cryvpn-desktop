@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Кнопка-шар виджета, VPN выключен: тёмный шар без свечения. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <gradient android:type="radial" android:gradientRadius="32dp"
+                android:startColor="#66000000" android:centerColor="#33000000" android:endColor="#00000000" />
+        </shape>
+    </item>
+    <item android:bottom="8dp" android:left="8dp" android:right="8dp" android:top="8dp">
+        <shape android:shape="oval">
+            <gradient android:type="radial" android:centerX="0.36" android:centerY="0.28" android:gradientRadius="34dp"
+                android:startColor="#FF8A94A3" android:centerColor="#FF3A4350" android:endColor="#FF12161C" />
+            <stroke android:width="1dp" android:color="#665B6472" />
+        </shape>
+    </item>
+    <item android:bottom="34dp" android:left="17dp" android:right="17dp" android:top="11dp">
+        <shape android:shape="oval">
+            <gradient android:angle="270" android:startColor="#55FFFFFF" android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+    <item android:bottom="19dp" android:left="19dp" android:right="19dp" android:top="18dp"
+        android:drawable="@drawable/widget_robot_off" />
+</layer-list>

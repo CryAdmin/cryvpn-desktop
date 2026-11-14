@@ -29,7 +29,6 @@ class CryWidget : AppWidgetProvider() {
     private const val PREFS = "cryvpn_vpn"
     private const val KEY_DIR = "dir"
     private const val GREEN = 0xFF4ADE80.toInt()
-    private const val GREY = 0xCCFFFFFF.toInt()
 
     private fun tunnelUp(context: Context): Boolean {
       val dir = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_DIR, null) ?: return false
@@ -63,9 +62,9 @@ class CryWidget : AppWidgetProvider() {
 
     private fun views(context: Context, on: Boolean, options: Bundle?): RemoteViews {
       val views = RemoteViews(context.packageName, R.layout.cry_widget)
-      views.setInt(R.id.widget_icon, "setBackgroundResource", if (on) R.drawable.widget_dot_on else R.drawable.widget_dot_off)
-      views.setInt(R.id.widget_icon, "setColorFilter", if (on) GREEN else GREY)
-      views.setTextViewText(R.id.widget_state, if (on) "Включён" else "Выключен")
+      views.setImageViewResource(R.id.widget_icon, if (on) R.drawable.widget_orb_on else R.drawable.widget_orb_off)
+      views.setInt(R.id.widget_root, "setBackgroundResource", if (on) R.drawable.widget_bg_on else R.drawable.widget_bg)
+      views.setTextViewText(R.id.widget_state, if (on) "● Включён" else "○ Выключен")
       views.setTextColor(R.id.widget_state, if (on) GREEN else 0x99FFFFFF.toInt())
       // В одну клетку подпись не помещается — остаётся одна голова робота.
       val width = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
