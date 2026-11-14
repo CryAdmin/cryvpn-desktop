@@ -11,6 +11,8 @@ mod secrets;
 mod settings;
 mod update;
 #[cfg(windows)]
+mod dpapi;
+#[cfg(windows)]
 mod winnet;
 
 use api::{Кабинет, Ответ, Подписка};

@@ -55,24 +55,18 @@ pub fn забыть(имя: &str) {
 
 // ---------------------------------------------------------------- Windows
 
-// Секрет в PowerShell передаём через стандартный ввод и только в base64.
+// Шифруем прямым обращением к системе (DPAPI). Раньше ради каждой записи
+// и каждого чтения запускался PowerShell: это большая программа, и при
+// плохой связи, когда приложение раз за разом достаёт сохранённый список
+// серверов, она стартовала каждые полминуты и грузила процессор.
 //
-// Раньше значение подставлялось прямо в текст команды. Это было плохо
-// дважды. Открытая сессия оказывалась в командной строке процесса, которую
-// видят журналы аудита и защитные программы. А файл `.dat` может подменить
-// любая программа пользователя — и подставленный туда текст с кавычками
-// исполнился бы как команда в нашем процессе с правами администратора.
-// Теперь в команду не попадает ничего, кроме постоянного текста, а
-// прочитанное из файла сначала проверяется: только знаки base64.
+// Вид записи на диске прежний — base64 от того, что вернула система, —
+// и записи прошлых версий читаются как есть. Прочитанное из файла
+// по-прежнему сначала проверяется: только знаки base64.
 
 #[cfg(windows)]
 fn закрыть(_имя: &str, открытое: &str) -> Option<String> {
-    let итог = крипто(
-        "$б=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()); \
-         $з=[Security.Cryptography.ProtectedData]::Protect($б,$null,'CurrentUser'); \
-         [Convert]::ToBase64String($з)",
-        &в_base64(открытое.as_bytes()),
-    )?;
+    let итог = в_base64(&crate::dpapi::закрыть(открытое.as_bytes())?);
     только_base64(&итог).then_some(итог)
 }
 
@@ -81,42 +75,11 @@ fn открыть(_имя: &str, закрытое: &str) -> Option<String> {
     if !только_base64(закрытое) {
         return None;
     }
-    let итог = крипто(
-        "$з=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()); \
-         $д=[Security.Cryptography.ProtectedData]::Unprotect($з,$null,'CurrentUser'); \
-         [Convert]::ToBase64String($д)",
-        закрытое,
-    )?;
-    String::from_utf8(crate::api::base64_в_байты(&итог)?).ok()
+    let открыто = crate::dpapi::открыть(&crate::api::base64_в_байты(закрытое)?)?;
+    String::from_utf8(открыто).ok()
 }
 
-#[cfg(windows)]
-fn крипто(что: &str, ввод: &str) -> Option<String> {
-    use std::io::Write;
-    use std::os::windows::process::CommandExt;
-    use std::process::Stdio;
-    let mut дитя = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            &format!("Add-Type -AssemblyName System.Security; {что}"),
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .creation_flags(0x08000000)
-        .spawn()
-        .ok()?;
-    дитя.stdin.take()?.write_all(ввод.as_bytes()).ok()?;
-    let вывод = дитя.wait_with_output().ok()?;
-    if !вывод.status.success() {
-        return None;
-    }
-    let строка = String::from_utf8_lossy(&вывод.stdout).trim().to_string();
-    (!строка.is_empty()).then_some(строка)
-}
-
-/// Только знаки base64 — ничего, что PowerShell мог бы принять за код.
+/// Только знаки base64: в файле записи не должно быть ничего другого.
 #[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
 fn только_base64(текст: &str) -> bool {
     !текст.is_empty()
@@ -170,6 +133,35 @@ mod проверки {
         }
         assert_eq!(открыть("проверка", "x');Start-Process calc;('"), None);
         assert_eq!(открыть("проверка", "AAAA"), None);
+    }
+
+    /// Записи прошлых версий шифровал PowerShell. Новый способ обязан их
+    /// читать — иначе после обновления все оказались бы вышедшими из
+    /// аккаунта. Делаем запись старым способом и читаем новым.
+    #[cfg(windows)]
+    #[test]
+    fn запись_прошлых_версий_читается() {
+        use std::io::Write;
+        use std::process::Stdio;
+        let секрет = "refresh.token-123_ABC и кириллица";
+        let mut дитя = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Add-Type -AssemblyName System.Security; \
+                 $б=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()); \
+                 $з=[Security.Cryptography.ProtectedData]::Protect($б,$null,'CurrentUser'); \
+                 [Convert]::ToBase64String($з)",
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("PowerShell не запустился");
+        дитя.stdin.take().unwrap().write_all(в_base64(секрет.as_bytes()).as_bytes()).unwrap();
+        let вывод = дитя.wait_with_output().unwrap();
+        let старая = String::from_utf8_lossy(&вывод.stdout).trim().to_string();
+        assert!(только_base64(&старая), "PowerShell вернул не запись: {старая}");
+        assert_eq!(открыть("проверка", &старая).as_deref(), Some(секрет));
     }
 
     #[test]
