@@ -10,6 +10,8 @@ mod paths;
 mod secrets;
 mod settings;
 mod update;
+#[cfg(windows)]
+mod winnet;
 
 use api::{Кабинет, Ответ, Подписка};
 use core::Туннель;

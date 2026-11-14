@@ -736,7 +736,7 @@ dependencies = [
 
 [[package]]
 name = "cryvpn"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "aes-gcm",
  "keyring",
@@ -752,6 +752,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "tokio",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

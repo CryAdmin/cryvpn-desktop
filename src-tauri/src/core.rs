@@ -1075,34 +1075,14 @@ fn запрос_учёта(ядро: &PathBuf) -> Result<String, String> {
 /// маршрута — например Tailscale без выходного узла — интернет через себя
 /// не ведут, им мы не мешаем и они нам тоже. Возвращает название чужого
 /// адаптера, как его показывает Windows.
+/// Название чужого VPN, если он сейчас забирает весь трафик.
+///
+/// Спрашиваем у самой системы, без запуска программ: проверка идёт всё
+/// время, пока поднят туннель, и PowerShell на её месте занимал у людей
+/// до 14% процессора.
 #[cfg(windows)]
 pub fn чужой_vpn() -> Option<String> {
-    use std::os::windows::process::CommandExt;
-    // Имена переменных в сценарии — латиницей: с русскими PowerShell
-    // спотыкался о кодировку командной строки.
-    let скрипт = "\
-$phys = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | ForEach-Object { $_.ifIndex });
-$routes = Get-NetRoute -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.DestinationPrefix -in '0.0.0.0/0','0.0.0.0/1','128.0.0.0/1' };
-foreach ($r in $routes) {
-  if ($phys -contains $r.ifIndex) { continue }
-  $a = Get-NetAdapter -InterfaceIndex $r.ifIndex -ErrorAction SilentlyContinue;
-  if (-not $a -or $a.Status -ne 'Up' -or $a.Name -like 'CryVPN*') { continue }
-  if ($a.InterfaceType -eq 53 -or $a.InterfaceDescription -match 'TAP|TUN|VPN|WireGuard') { $a.InterfaceDescription; break }
-}";
-    let вывод = Command::new("powershell")
-        .args(["-NoProfile", "-Command", скрипт])
-        .creation_flags(0x08000000)
-        .output()
-        .ok()?;
-    let имя = String::from_utf8_lossy(&вывод.stdout)
-        .lines()
-        .next()
-        .unwrap_or("")
-        .trim()
-        .trim_end_matches(" Tunnel")
-        .trim_end_matches(" Adapter")
-        .to_string();
-    (!имя.is_empty()).then_some(имя)
+    crate::winnet::чужой_vpn()
 }
 
 #[cfg(not(windows))]
