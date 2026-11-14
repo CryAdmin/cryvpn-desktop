@@ -3,22 +3,22 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="oval">
-            <gradient android:type="radial" android:gradientRadius="32dp"
+            <gradient android:type="radial" android:gradientRadius="28dp"
                 android:startColor="#B34ADE80" android:centerColor="#404ADE80" android:endColor="#004ADE80" />
         </shape>
     </item>
-    <item android:bottom="8dp" android:left="8dp" android:right="8dp" android:top="8dp">
+    <item android:bottom="7dp" android:left="7dp" android:right="7dp" android:top="7dp">
         <shape android:shape="oval">
-            <gradient android:type="radial" android:centerX="0.36" android:centerY="0.28" android:gradientRadius="34dp"
+            <gradient android:type="radial" android:centerX="0.36" android:centerY="0.28" android:gradientRadius="30dp"
                 android:startColor="#FFD1FADF" android:centerColor="#FF2FD06F" android:endColor="#FF0A6B33" />
             <stroke android:width="1dp" android:color="#CCBBF7D0" />
         </shape>
     </item>
-    <item android:bottom="34dp" android:left="17dp" android:right="17dp" android:top="11dp">
+    <item android:bottom="30dp" android:left="15dp" android:right="15dp" android:top="9.5dp">
         <shape android:shape="oval">
             <gradient android:angle="270" android:startColor="#99FFFFFF" android:endColor="#00FFFFFF" />
         </shape>
     </item>
-    <item android:bottom="19dp" android:left="19dp" android:right="19dp" android:top="18dp"
+    <item android:bottom="16.5dp" android:left="16.5dp" android:right="16.5dp" android:top="15.5dp"
         android:drawable="@drawable/widget_robot_on" />
 </layer-list>

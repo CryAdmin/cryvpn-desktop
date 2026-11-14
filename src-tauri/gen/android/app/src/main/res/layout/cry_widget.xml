@@ -1,19 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Виджет на рабочий стол: нажал — VPN включился или выключился. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Клетка рабочего стола высокая, а плитка нужна приплюснутая: снаружи
+     прозрачная рамка на всю клетку, внутри плитка своей высоты по центру. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<LinearLayout
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="60dp"
+    android:layout_gravity="center"
     android:background="@drawable/widget_bg"
     android:gravity="center"
     android:orientation="horizontal"
-    android:paddingStart="6dp"
+    android:paddingStart="4dp"
     android:paddingEnd="12dp">
 
     <ImageView
         android:id="@+id/widget_icon"
-        android:layout_width="62dp"
-        android:layout_height="62dp"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
         android:contentDescription="CryVPN"
         android:src="@drawable/widget_orb_off" />
 
@@ -46,3 +53,4 @@
             android:textSize="12sp" />
     </LinearLayout>
 </LinearLayout>
+</FrameLayout>
