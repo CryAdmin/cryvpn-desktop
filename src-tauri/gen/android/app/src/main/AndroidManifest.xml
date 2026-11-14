@@ -89,6 +89,21 @@
                 android:value="true" />
         </service>
 
+        <!-- Виджет на рабочий стол. В процессе службы VPN, как и плитка:
+             ради одной кнопки окно приложения поднимать незачем. -->
+        <receiver
+            android:name=".CryWidget"
+            android:process=":vpn"
+            android:exported="true"
+            android:label="CryVPN">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/cry_widget_info" />
+        </receiver>
+
         <service
             android:name=".CryVpnService"
             android:process=":vpn"

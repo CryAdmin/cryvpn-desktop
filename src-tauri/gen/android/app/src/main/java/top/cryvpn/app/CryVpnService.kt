@@ -100,6 +100,7 @@ class CryVpnService : VpnService() {
       killCore()
       file("tunnel.on")?.delete()
       CryTileService.refresh(this)
+      CryWidget.refresh(this)
       if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
       stopSelf(startId)
       return START_NOT_STICKY
@@ -195,6 +196,7 @@ class CryVpnService : VpnService() {
       corePid = pid
       file("tunnel.on")?.writeText("1")
       CryTileService.refresh(this)
+      CryWidget.refresh(this)
       // При запуске с плитки открытую конфигурацию убираем сами: ядро её
       // уже прочло, а приложения, которое обычно это делает, рядом нет.
       if (last) handler.postDelayed({ config.delete() }, 4000)
@@ -234,6 +236,7 @@ class CryVpnService : VpnService() {
     killCore()
     file("tunnel.on")?.delete()
     CryTileService.refresh(this)
+    CryWidget.refresh(this)
     stopNow()
   }
 

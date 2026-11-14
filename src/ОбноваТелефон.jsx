@@ -14,13 +14,28 @@ export default function ОбноваТелефон() {
   const [шаг, установитьШаг] = useState("ждём"); // ждём | качаем | беда
 
   useEffect(() => {
-    const спросить = () =>
+    // Проверяем при запуске, раз в час и когда человек возвращается в окно,
+    // но не чаще раза в пять минут. Неудачная проверка плашку не снимает:
+    // раз узнали о новой версии — помним.
+    let спрошено = 0;
+    const спросить = () => {
+      спрошено = Date.now();
       invoke("обновление")
-        .then((новая) => установитьВерсию(новая))
+        .then((новая) => установитьВерсию((была) => новая ?? была))
         .catch(() => {});
+    };
+    const вернулись = () => {
+      if (!document.hidden && Date.now() - спрошено > 5 * 60 * 1000) спросить();
+    };
     спросить();
     const часы = setInterval(спросить, ЧАС);
-    return () => clearInterval(часы);
+    window.addEventListener("focus", вернулись);
+    document.addEventListener("visibilitychange", вернулись);
+    return () => {
+      clearInterval(часы);
+      window.removeEventListener("focus", вернулись);
+      document.removeEventListener("visibilitychange", вернулись);
+    };
   }, []);
 
   // Плашка занимает место сверху — экран под ней должен стать ниже.
