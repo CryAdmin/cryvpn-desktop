@@ -4,6 +4,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Напоминание «Подписка окончена» ставится будильником; после
+         перезагрузки телефона будильник надо поставить заново. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Проверка срока подписки идёт мимо собственного туннеля: для этого
+         надо видеть, какие сети у телефона есть. Только список сетей. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Обновление: приложение отдаёт системе скачанный и проверенный APK. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -130,6 +136,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/cry_widget_small_info" />
+        </receiver>
+
+        <!-- Напоминание «Подписка окончена»: будильник на час окончания,
+             плюс перезагрузка телефона и обновление приложения, после
+             которых будильник ставится заново. Снаружи недоступен. -->
+        <receiver
+            android:name=".ExpiryReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
         </receiver>
 
         <service

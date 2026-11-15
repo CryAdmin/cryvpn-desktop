@@ -48,6 +48,12 @@ class TextArgs {
   var text: String = ""
 }
 
+@InvokeArg
+class RemindArgs {
+  var at: Long = 0
+  var plan: String = ""
+}
+
 /** Мост между приложением и Android: туннель, сведения об устройстве, шифрование. */
 @TauriPlugin
 class VpnPlugin(private val activity: Activity) : Plugin(activity) {
@@ -290,6 +296,21 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
         .build()
     )
     return generator.generateKey()
+  }
+
+  /**
+   * Напоминание «Подписка окончена»: приложение прочитало срок подписки и
+   * просит поставить будильник (at = 0 — снять). См. ExpiryReminder.
+   */
+  @Command
+  fun remind(invoke: Invoke) {
+    val args = invoke.parseArgs(RemindArgs::class.java)
+    try {
+      ExpiryReminder.schedule(activity.applicationContext, args.at, args.plan)
+    } catch (e: Exception) {
+      // напоминание — удобство, из-за него ничего не должно падать
+    }
+    invoke.resolve()
   }
 
   @Command

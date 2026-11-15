@@ -2015,3 +2015,91 @@ html.спит *::after {
 .меню-сервера button.к-любимым svg {
   color: #ff5d73;
 }
+
+
+/* ===== подписка окончена: табличка поверх экрана, убрать её нельзя =====
+   Закрывает всё окно, кроме верхней полосы: кнопки «свернуть» и
+   «закрыть» на компьютере и плашка обновления на телефоне остаются. */
+.табличка-подписки {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 8, 11, 0.86);
+  backdrop-filter: blur(6px);
+  animation: проявиться 0.2s ease both;
+  /* Низкое окно (телефон на боку, две программы на экране): карточка
+     прокручивается, нижние кнопки не теряются. */
+  overflow-y: auto;
+}
+
+/* Вопрос «Войти в другой аккаунт?» и сообщения о входе задаёт само
+   приложение, а не экран под табличкой — они должны быть видны поверх неё.
+   Ниже полосы окна (50): её кнопки остаются главными. */
+.затемнение.поверх-таблички,
+.беда.внизу {
+  z-index: 40;
+}
+
+/* Строка только сообщает — нажатия сквозь неё доходят до кнопок под ней. */
+.беда.внизу {
+  pointer-events: none;
+}
+
+.табличка-заметка {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e8b45a;
+}
+
+.с-полосой .табличка-подписки {
+  top: 32px;
+}
+
+.с-обновой .табличка-подписки {
+  top: 40px;
+}
+
+.табличка-карточка {
+  width: min(380px, 100%);
+  padding: 26px 22px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  text-align: center;
+  background: linear-gradient(180deg, #1d2531 0%, #131820 100%);
+  border: 1px solid #2c3950;
+  border-radius: 18px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.табличка-значок {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ee5148;
+  background: rgba(238, 81, 72, 0.12);
+  border: 1px solid rgba(238, 81, 72, 0.35);
+}
+
+.табличка-карточка h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.табличка-карточка p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--тусклый);
+}
