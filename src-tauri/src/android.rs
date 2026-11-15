@@ -85,10 +85,13 @@ pub async fn поднять(папка: &Path, ядро: &Path, базы: &Path,
     // туннеля сам, по имени пакета.
     let мимо: Vec<String> =
         crate::settings::прочитать().мимо_vpn.into_iter().map(|п| п.путь).collect();
+    // DNS туннеля по выбору из настроек: на Android его задаёт служба VPN.
+    let настройки = crate::settings::прочитать();
+    let днс = crate::settings::адреса_днс(&настройки.днс);
     мост()?
         .run_mobile_plugin_async::<serde_json::Value>(
             "start",
-            json!({ "dir": папка, "core": ядро, "assets": базы, "bypass": мимо, "title": сервер }),
+            json!({ "dir": папка, "core": ядро, "assets": базы, "bypass": мимо, "title": сервер, "dns": днс }),
         )
         .await
         .map(|_| ())

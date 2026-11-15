@@ -30,6 +30,7 @@ class StartArgs {
   var assets: String = ""
   var bypass: Array<String> = arrayOf()
   var title: String = ""
+  var dns: Array<String> = arrayOf()
 }
 
 @InvokeArg
@@ -54,6 +55,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
   private var pendingCore = ""
   private var pendingAssets = ""
   private var pendingBypass: Array<String> = arrayOf()
+  private var pendingDns: Array<String> = arrayOf()
   private var pendingTitle = ""
 
   /**
@@ -216,6 +218,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     pendingAssets = args.assets
     pendingBypass = args.bypass
     pendingTitle = args.title
+    pendingDns = args.dns
     if (needNotificationConsent()) {
       afterNotificationAnswer = { activity.runOnUiThread { askVpnConsent(invoke) } }
       activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIFICATIONS_REQUEST)
@@ -254,6 +257,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
         .putExtra(CryVpnService.EXTRA_CORE, pendingCore)
         .putExtra(CryVpnService.EXTRA_ASSETS, pendingAssets)
         .putExtra(CryVpnService.EXTRA_BYPASS, pendingBypass)
+        .putExtra(CryVpnService.EXTRA_DNS, pendingDns)
         .putExtra(CryVpnService.EXTRA_TITLE, pendingTitle)
       if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent) else activity.startService(intent)
       invoke.resolve(JSObject())

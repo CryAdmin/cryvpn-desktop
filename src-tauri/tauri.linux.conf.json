@@ -35,7 +35,11 @@
           "util-linux",
           "libcap2-bin"
         ],
-        "postInstallScript": "../scripts/linux-postinst.sh"
+        "postInstallScript": "../scripts/linux-postinst.sh",
+        "files": {
+          "/usr/lib/CryVPN/cryvpn-dns": "../scripts/linux-cryvpn-dns.sh",
+          "/usr/share/polkit-1/actions/top.cryvpn.app.policy": "../scripts/linux-polkit.policy"
+        }
       },
       "rpm": {
         "depends": [
@@ -44,7 +48,11 @@
           "util-linux",
           "libcap"
         ],
-        "postInstallScript": "../scripts/linux-postinst.sh"
+        "postInstallScript": "../scripts/linux-postinst.sh",
+        "files": {
+          "/usr/lib/CryVPN/cryvpn-dns": "../scripts/linux-cryvpn-dns.sh",
+          "/usr/share/polkit-1/actions/top.cryvpn.app.policy": "../scripts/linux-polkit.policy"
+        }
       }
     }
   }

@@ -264,6 +264,15 @@ impl Туннель {
             });
         }
 
+        // Linux: свой DNS сообщаем службе DNS системы, когда туннельный
+        // интерфейс уже есть. Не вышло — подключение не оставляем: человек
+        // выбрал свой DNS не просто так, и молча работать на другом — обман.
+        #[cfg(target_os = "linux")]
+        if let Err(беда) = применить_днс() {
+            self.выключить();
+            return Err(беда);
+        }
+
         // Ядро прочитало конфигурацию при старте и больше к файлу не
         // вернётся. А в файле — ключи подписки этого человека открытым
         // текстом. Стираем сразу: на диске им делать нечего.
@@ -432,7 +441,10 @@ fn собрать_конфиг(исходный: &Value) -> Value {
                 // а 172.19.x — Docker и WSL. Поэтому своя подсеть в глубине
                 // диапазона: спорить за адрес нам не с кем.
                 "gateway": ["198.19.77.1/30"],
-                "dns": ["1.1.1.1", "8.8.8.8"],
+                // DNS туннеля — по выбору из настроек. Это адреса для самого
+                // туннельного адаптера: настройки DNS системы мы не меняем,
+                // и с отключением VPN всё возвращается само.
+                "dns": crate::settings::адреса_днс(&crate::settings::прочитать().днс),
                 "userLevel": 0,
                 // Ядро само пропишет маршруты и само исключит из туннеля
                 // собственные соединения — без этого трафик до сервера
@@ -495,12 +507,195 @@ fn собрать_конфиг(исходный: &Value) -> Value {
         );
     }
 
+    // Linux: система не берёт DNS у туннельного адаптера, как Windows и
+    // Android, поэтому выбранный в настройках DNS подставляем сами. Здесь —
+    // для систем без службы DNS (systemd-resolved): там запросы идут по
+    // обычным маршрутам, и их можно завернуть в туннель. Где служба есть,
+    // адрес сообщается ей после запуска, см. `применить_днс`.
+    #[cfg(target_os = "linux")]
+    if !есть_служба_днс() {
+        let выбор = crate::settings::прочитать().днс;
+        if !выбор.trim().is_empty() {
+            if let Some(свой) = crate::settings::адреса_днс(&выбор).first() {
+                перехватить_днс(&mut конфиг, &системные_днс(), свой);
+            }
+        }
+    }
+
     // Программы, которые человек пустил мимо VPN. Ядро узнаёт их трафик
     // по пути к файлу и отправляет напрямую, через обычную сеть.
     #[cfg(any(windows, target_os = "linux"))]
     добавить_исключения(&mut конфиг, &crate::apps::для_ядра(&crate::settings::прочитать().мимо_vpn));
 
     конфиг
+}
+
+/// Работает ли в системе служба DNS systemd-resolved (Ubuntu, Fedora и
+/// большинство нынешних систем). Она шлёт запросы в обход маршрутов,
+/// привязывая их к сетевой карте, поэтому завернуть их в туннель нельзя —
+/// адрес для туннеля ей надо сообщить.
+#[cfg(target_os = "linux")]
+fn есть_служба_днс() -> bool {
+    std::path::Path::new("/run/systemd/resolve/resolv.conf").exists()
+}
+
+/// Сообщить службе DNS системы адрес для нашего туннеля.
+///
+/// Это запись про один интерфейс — CryVPN. Она живёт, пока туннель
+/// поднят, и исчезает вместе с ним; общие настройки DNS не меняются.
+/// Задать её может только администратор. В пакетах .deb и .rpm для этого
+/// стоит отдельный сценарий с разрешением запускать его без пароля; он
+/// умеет только это и принимает только адреса. У AppImage установщика
+/// нет — там система спросит пароль.
+#[cfg(target_os = "linux")]
+fn применить_днс() -> Result<(), String> {
+    let выбор = crate::settings::прочитать().днс;
+    if выбор.trim().is_empty() || !есть_служба_днс() {
+        return Ok(());
+    }
+    // Адреса прошли разбор как IPv4 — в них нет ничего, кроме цифр и точек.
+    let адреса = crate::settings::адреса_днс(&выбор);
+    const СЦЕНАРИЙ: &str = "/usr/lib/CryVPN/cryvpn-dns";
+    let mut команда = Command::new("pkexec");
+    if std::path::Path::new(СЦЕНАРИЙ).exists() {
+        команда.arg(СЦЕНАРИЙ).args(&адреса);
+    } else {
+        команда.args([
+            "/bin/sh",
+            "-c",
+            &format!(
+                "resolvectl dns {т} {а} && resolvectl domain {т} '~.' && resolvectl default-route {т} yes",
+                т = ИМЯ_ТУННЕЛЯ,
+                а = адреса.join(" "),
+            ),
+        ]);
+    }
+    let итог = команда
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|_| "Свой DNS не применён: не найден pkexec. Выберите в настройках DNS «По умолчанию»".to_string())?;
+    match итог.status.code() {
+        Some(0) => Ok(()),
+        Some(126) | Some(127) => Err(
+            "Свой DNS не применён: нужен пароль администратора. Введите его или выберите в настройках DNS «По умолчанию»".into(),
+        ),
+        _ => Err("Свой DNS не применён: система отказала. Выберите в настройках DNS «По умолчанию»".into()),
+    }
+}
+
+/// Адреса DNS, которыми сейчас пользуется система (только IPv4).
+///
+/// Читаем, ничего не меняя.
+#[cfg(target_os = "linux")]
+fn системные_днс() -> Vec<String> {
+    for файл in ["/etc/resolv.conf"] {
+        let Ok(текст) = std::fs::read_to_string(файл) else { continue };
+        let адреса: Vec<String> = текст
+            .lines()
+            .filter_map(|с| с.trim().strip_prefix("nameserver"))
+            .filter_map(|а| а.trim().parse::<std::net::Ipv4Addr>().ok())
+            .filter(|а| !а.is_loopback() && !а.is_unspecified())
+            .map(|а| а.to_string())
+            .collect();
+        if !адреса.is_empty() {
+            return адреса;
+        }
+    }
+    Vec::new()
+}
+
+/// Свой DNS на Linux: запросы к DNS заворачиваем в туннель и отправляем
+/// на выбранный человеком адрес.
+///
+/// Настройки системы не трогаем вовсе. Делаем две вещи, и обе живут только
+/// пока поднят туннель. Первое: адреса DNS, которыми пользуется система,
+/// ведём через туннель — иначе запросы к домашнему роутеру шли бы мимо
+/// него. Второе: всё, что идёт через туннель на порт DNS, перенаправляем
+/// на выбранный адрес, причём через сам VPN, а не напрямую.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn перехватить_днс(конфиг: &mut Value, системные: &[String], свой: &str) {
+    const МЕТКА: &str = "днс-туннеля";
+    // Через какой выход идёт трафик VPN: первый, который не служебный.
+    let Some(основной) = конфиг
+        .get("outbounds")
+        .and_then(|в| в.as_array())
+        .into_iter()
+        .flatten()
+        .find(|в| {
+            !matches!(
+                в.get("protocol").and_then(|п| п.as_str()),
+                None | Some("freedom") | Some("blackhole") | Some("dns") | Some("loopback")
+            )
+        })
+        .and_then(|в| в.get("tag").and_then(|т| т.as_str()))
+        .map(str::to_string)
+    else {
+        return;
+    };
+
+    // Выход «напрямую»: готовый из подписки или свой.
+    let прямой = конфиг
+        .get("outbounds")
+        .and_then(|в| в.as_array())
+        .into_iter()
+        .flatten()
+        .find(|в| {
+            в.get("protocol").and_then(|п| п.as_str()) == Some("freedom")
+                && в.get("settings").and_then(|н| н.get("redirect")).is_none()
+        })
+        .and_then(|в| в.get("tag").and_then(|т| т.as_str()))
+        .map(str::to_string)
+        .or_else(|| {
+            let метка = "мимо-vpn".to_string();
+            конфиг["outbounds"]
+                .as_array_mut()
+                .map(|выходы| выходы.push(json!({ "tag": метка, "protocol": "freedom" })))
+                .map(|_| метка)
+        });
+
+    if let Some(маршруты) = конфиг["inbounds"][0]["settings"]["autoSystemRoutingTable"].as_array_mut() {
+        for адрес in системные {
+            маршруты.push(json!(format!("{адрес}/32")));
+        }
+    }
+    if let Some(выходы) = конфиг["outbounds"].as_array_mut() {
+        выходы.push(json!({
+            "tag": МЕТКА,
+            "protocol": "freedom",
+            "settings": { "redirect": format!("{свой}:53") },
+            "streamSettings": { "sockopt": { "dialerProxy": основной } }
+        }));
+    }
+    if !конфиг["routing"].is_object() {
+        конфиг["routing"] = json!({});
+    }
+    if !конфиг["routing"]["rules"].is_array() {
+        конфиг["routing"]["rules"] = json!([]);
+    }
+    if let Some(правила) = конфиг["routing"]["rules"].as_array_mut() {
+        // Сразу за служебным правилом учёта и раньше правил подписки:
+        // иначе запрос к DNS ушёл бы по ним, мимо выбранного адреса.
+        let место = usize::from(
+            правила.first().and_then(|п| п.get("outboundTag")).and_then(|т| т.as_str())
+                == Some("api"),
+        );
+        правила.insert(
+            место,
+            json!({ "type": "field", "inboundTag": ["tun"], "port": "53", "outboundTag": МЕТКА }),
+        );
+        // Адрес DNS системы — обычно сам домашний роутер. В туннель мы
+        // завернули его целиком, а нужен нам был только DNS. Всё остальное
+        // к этому адресу (страница настроек роутера, продление адреса в
+        // сети) отправляем напрямую, как без VPN.
+        if let Some(прямой) = прямой {
+            if !системные.is_empty() {
+                правила.insert(
+                    место + 1,
+                    json!({ "type": "field", "inboundTag": ["tun"], "ip": системные, "outboundTag": прямой }),
+                );
+            }
+        }
+    }
 }
 
 /// Запущены ли мы с правами администратора.
@@ -602,6 +797,49 @@ mod проверки {
         добавить_исключения(&mut конфиг, &["C:/App/app.exe".to_string()]);
         assert_eq!(конфиг["outbounds"][1]["protocol"], "freedom");
         assert_eq!(конфиг["routing"]["rules"][0]["outboundTag"], конфиг["outbounds"][1]["tag"]);
+    }
+
+    #[test]
+    fn свой_днс_идёт_через_vpn() {
+        let mut конфиг = json!({
+            "inbounds": [{ "tag": "tun", "settings": { "autoSystemRoutingTable": ["0.0.0.0/0"] } }],
+            "outbounds": [
+                { "tag": "direct", "protocol": "freedom" },
+                { "tag": "proxy", "protocol": "vless" }
+            ],
+            "routing": { "rules": [
+                { "type": "field", "inboundTag": ["учёт"], "outboundTag": "api" },
+                { "type": "field", "domain": ["geosite:ru"], "outboundTag": "direct" }
+            ] }
+        });
+        перехватить_днс(&mut конфиг, &["192.168.1.1".to_string()], "77.88.8.8");
+        assert_eq!(
+            конфиг["inbounds"][0]["settings"]["autoSystemRoutingTable"],
+            json!(["0.0.0.0/0", "192.168.1.1/32"])
+        );
+        let выход = &конфиг["outbounds"][2];
+        assert_eq!(выход["settings"]["redirect"], "77.88.8.8:53");
+        // Через VPN, а не напрямую: иначе запросы видел бы провайдер.
+        assert_eq!(выход["streamSettings"]["sockopt"]["dialerProxy"], "proxy");
+        let правила = конфиг["routing"]["rules"].as_array().unwrap();
+        assert_eq!(правила[0]["outboundTag"], "api");
+        assert_eq!(правила[1]["port"], "53");
+        assert_eq!(правила[1]["outboundTag"], выход["tag"]);
+        // Остальное к адресу роутера — напрямую, а не в VPN.
+        assert_eq!(правила[2]["ip"], json!(["192.168.1.1"]));
+        assert_eq!(правила[2]["outboundTag"], "direct");
+        assert_eq!(правила[3]["domain"], json!(["geosite:ru"]));
+    }
+
+    #[test]
+    fn без_выхода_vpn_днс_не_трогаем() {
+        let mut конфиг = json!({
+            "inbounds": [{ "settings": { "autoSystemRoutingTable": ["0.0.0.0/0"] } }],
+            "outbounds": [{ "tag": "direct", "protocol": "freedom" }]
+        });
+        let было = конфиг.clone();
+        перехватить_днс(&mut конфиг, &["192.168.1.1".to_string()], "77.88.8.8");
+        assert_eq!(конфиг, было);
     }
 
     #[test]

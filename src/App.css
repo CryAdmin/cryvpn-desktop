@@ -1878,3 +1878,28 @@ html:not(.телефон) .сервер.выбран {
 html:not(.телефон) .круг.вкл .щит {
   filter: none;
 }
+
+
+/* ===== настройки: выбор DNS туннеля ===== */
+.днс-выбор {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.кнопка-шапки.выбрана {
+  border-color: var(--удача);
+  color: var(--удача);
+  background: #16211a;
+}
+
+.днс-свой {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.днс-свой .поле {
+  flex: 1;
+  min-width: 0;
+}

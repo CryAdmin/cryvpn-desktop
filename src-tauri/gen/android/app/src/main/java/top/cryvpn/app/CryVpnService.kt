@@ -49,6 +49,7 @@ class CryVpnService : VpnService() {
     const val EXTRA_CORE = "core"
     const val EXTRA_ASSETS = "assets"
     const val EXTRA_BYPASS = "bypass"
+    const val EXTRA_DNS = "dns"
     const val EXTRA_TITLE = "title"
     const val EXTRA_FROM_USER = "fromUser"
     private const val CHANNEL = "vpn"
@@ -119,6 +120,13 @@ class CryVpnService : VpnService() {
     } else {
       intent?.getStringArrayExtra(EXTRA_BYPASS) ?: arrayOf()
     }
+    // DNS туннеля по выбору из настроек приложения. Пусто — запуск от
+    // прежней версии или сбой передачи: берём привычные адреса.
+    val dns: List<String> = (if (last) {
+      prefs.getString(EXTRA_DNS, "").orEmpty().split("\n")
+    } else {
+      intent?.getStringArrayExtra(EXTRA_DNS)?.toList() ?: listOf()
+    }).filter { it.isNotBlank() }.ifEmpty { listOf("1.1.1.1", "8.8.8.8") }
     val title = if (last) prefs.getString(EXTRA_TITLE, "").orEmpty() else intent?.getStringExtra(EXTRA_TITLE).orEmpty()
     if (folder == null || core == null || assets == null) {
       stopNow()
@@ -149,6 +157,7 @@ class CryVpnService : VpnService() {
             .putString(EXTRA_DIR, folder)
             .putString(EXTRA_ASSETS, assets)
             .putString(EXTRA_BYPASS, bypass.joinToString("\n"))
+            .putString(EXTRA_DNS, dns.joinToString("\n"))
             .putString(EXTRA_TITLE, title)
             .apply()
         } catch (e: Exception) {
@@ -162,9 +171,21 @@ class CryVpnService : VpnService() {
         // IPv6 тоже забираем в туннель: без этого он шёл бы мимо VPN.
         .addAddress("fd77:7777:7777::1", 126)
         .addRoute("::", 0)
-        .addDnsServer("1.1.1.1")
-        .addDnsServer("8.8.8.8")
         .addDisallowedApplication(packageName)
+      // Адрес с ошибкой не должен сорвать туннель: пропускаем его, а если
+      // не подошёл ни один — ставим привычные.
+      var dnsSet = 0
+      for (address in dns) {
+        try {
+          builder.addDnsServer(address)
+          dnsSet++
+        } catch (e: Exception) {
+        }
+      }
+      if (dnsSet == 0) {
+        builder.addDnsServer("1.1.1.1")
+        builder.addDnsServer("8.8.8.8")
+      }
       // Приложения, которые человек пустил мимо VPN. Удалённое с телефона
       // приложение пропускаем: из-за него туннель не должен сорваться.
       for (pkg in bypass) {

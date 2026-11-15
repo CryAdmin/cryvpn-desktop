@@ -10,4 +10,6 @@ SC="$(command -v setcap || echo /usr/sbin/setcap)"
 if [ -x "$SC" ] && [ -f /usr/lib/CryVPN/resources/xray ]; then
   "$SC" cap_net_admin,cap_net_raw+ep /usr/lib/CryVPN/resources/xray || true
 fi
+# Сценарий, задающий DNS туннеля: запускать его должны мочь, менять — нет.
+[ -f /usr/lib/CryVPN/cryvpn-dns ] && chown root:root /usr/lib/CryVPN/cryvpn-dns && chmod 755 /usr/lib/CryVPN/cryvpn-dns
 exit 0

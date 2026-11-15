@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Разрешает человеку за этим компьютером задать DNS для туннеля CryVPN
+     без пароля. Разрешение — на один сценарий, который ничего другого
+     не умеет: см. /usr/lib/CryVPN/cryvpn-dns. -->
+<policyconfig>
+  <vendor>CryVPN</vendor>
+  <action id="top.cryvpn.app.dns">
+    <description>Set DNS for the CryVPN tunnel</description>
+    <description xml:lang="ru">Задать DNS для туннеля CryVPN</description>
+    <message>CryVPN sets the DNS for its tunnel</message>
+    <message xml:lang="ru">CryVPN задаёт DNS для своего туннеля</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/CryVPN/cryvpn-dns</annotate>
+  </action>
+</policyconfig>
