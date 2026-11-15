@@ -52,7 +52,10 @@ class CryVpnService : VpnService() {
     const val EXTRA_DNS = "dns"
     const val EXTRA_TITLE = "title"
     const val EXTRA_FROM_USER = "fromUser"
-    private const val CHANNEL = "vpn"
+    // Имя канала уведомлений. «vpn» — прежний канал, на котором значок
+    // приложения получал красную единичку: см. showNotification.
+    private const val CHANNEL = "vpn-status"
+    private const val OLD_CHANNEL = "vpn"
     private const val OUTSIDE = "выключено-снаружи"
 
     init {
@@ -269,8 +272,16 @@ class CryVpnService : VpnService() {
   private fun showNotification(server: String) {
     val manager = getSystemService(NotificationManager::class.java)
     if (Build.VERSION.SDK_INT >= 26) {
+      // Без метки на значке приложения. Уведомление о работе VPN — это
+      // состояние, а не новость: красная единичка на значке, пока VPN
+      // включён, выглядит как непрочитанное сообщение. Запретить метку
+      // можно только при создании канала, у готового канала система это
+      // менять не даёт — поэтому канал новый, а прежний удаляем.
+      manager.deleteNotificationChannel(OLD_CHANNEL)
       manager.createNotificationChannel(
-        NotificationChannel(CHANNEL, "Подключение VPN", NotificationManager.IMPORTANCE_LOW)
+        NotificationChannel(CHANNEL, "Подключение VPN", NotificationManager.IMPORTANCE_LOW).apply {
+          setShowBadge(false)
+        }
       )
     }
     val open = PendingIntent.getActivity(
@@ -291,6 +302,9 @@ class CryVpnService : VpnService() {
         // Показывать сразу: иначе Android придерживает уведомление службы
         // до десяти секунд.
         if (Build.VERSION.SDK_INT >= 31) setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        // И само уведомление в счётчик на значке не идёт.
+        if (Build.VERSION.SDK_INT >= 26) setBadgeIconType(Notification.BADGE_ICON_NONE)
+        setNumber(0)
       }
       .addAction(Notification.Action.Builder(null, "Отключить", stop).build())
       .build()
