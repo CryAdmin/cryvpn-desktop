@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import Полоса from "./Полоса.jsx";
 import ОбноваТелефон from "./ОбноваТелефон.jsx";
+import "./сон.js";
 
 // Системную полосу окна убираем в Windows и Linux; на Mac она и так тёмная.
 // В Windows она белая, в Linux — какая выпадет у рабочего стола: синяя,

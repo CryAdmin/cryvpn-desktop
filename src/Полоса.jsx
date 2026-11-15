@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { уснуть } from "./сон.js";
 
 // Своя верхняя полоса окна вместо системной: та в Windows белая и режет
 // окно пополам. Эта прозрачная — фон окна идёт под ней без шва. За неё
@@ -65,7 +66,11 @@ export default function Полоса() {
           {подпись}
         </button>
       )}
-      <button className="окно-кнопка" onClick={() => окно.minimize()} aria-label="Свернуть">
+      <button className="окно-кнопка" onClick={() => {
+          // Свёрнутое окно тоже никто не видит — пусть не рисует.
+          уснуть(true);
+          окно.minimize();
+        }} aria-label="Свернуть">
         <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
           <path d="M0 5h10" stroke="currentColor" strokeWidth="1" />
         </svg>
