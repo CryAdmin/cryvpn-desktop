@@ -31,6 +31,7 @@ class StartArgs {
   var bypass: Array<String> = arrayOf()
   var title: String = ""
   var dns: Array<String> = arrayOf()
+  var kill: Boolean = false
 }
 
 @InvokeArg
@@ -41,6 +42,11 @@ class AssetsArgs {
 @InvokeArg
 class InstallArgs {
   var path: String = ""
+}
+
+@InvokeArg
+class StopArgs {
+  var keep: Boolean = false
 }
 
 @InvokeArg
@@ -62,6 +68,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
   private var pendingAssets = ""
   private var pendingBypass: Array<String> = arrayOf()
   private var pendingDns: Array<String> = arrayOf()
+  private var pendingKill = false
   private var pendingTitle = ""
 
   /**
@@ -225,6 +232,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     pendingBypass = args.bypass
     pendingTitle = args.title
     pendingDns = args.dns
+    pendingKill = args.kill
     if (needNotificationConsent()) {
       afterNotificationAnswer = { activity.runOnUiThread { askVpnConsent(invoke) } }
       activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIFICATIONS_REQUEST)
@@ -264,6 +272,7 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
         .putExtra(CryVpnService.EXTRA_ASSETS, pendingAssets)
         .putExtra(CryVpnService.EXTRA_BYPASS, pendingBypass)
         .putExtra(CryVpnService.EXTRA_DNS, pendingDns)
+        .putExtra(CryVpnService.EXTRA_KILL, pendingKill)
         .putExtra(CryVpnService.EXTRA_TITLE, pendingTitle)
       if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent) else activity.startService(intent)
       invoke.resolve(JSObject())
@@ -274,8 +283,15 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun stop(invoke: Invoke) {
+    val keep = try {
+      invoke.parseArgs(StopArgs::class.java).keep
+    } catch (e: Exception) {
+      false
+    }
     activity.startService(
-      Intent(activity, CryVpnService::class.java).setAction(CryVpnService.ACTION_STOP)
+      Intent(activity, CryVpnService::class.java)
+        .setAction(CryVpnService.ACTION_STOP)
+        .putExtra(CryVpnService.EXTRA_KEEP, keep)
     )
     invoke.resolve(JSObject())
   }

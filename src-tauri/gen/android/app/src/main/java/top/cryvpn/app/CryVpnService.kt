@@ -52,6 +52,12 @@ class CryVpnService : VpnService() {
     const val EXTRA_DNS = "dns"
     const val EXTRA_TITLE = "title"
     const val EXTRA_FROM_USER = "fromUser"
+    /** Защита от утечки (kill switch): при обрыве туннель не отпускаем. */
+    const val EXTRA_KILL = "kill"
+    /** Отметка для приложения: VPN оборвался, защита держит интернет. */
+    const val BLOCK_MARK = "tunnel.block"
+    /** Остановить ядро, но туннель под защитой не отпускать. */
+    const val EXTRA_KEEP = "keep"
     // Имя канала уведомлений. «vpn» — прежний канал, на котором значок
     // приложения получал красную единичку: см. showNotification.
     private const val CHANNEL = "vpn-status"
@@ -68,12 +74,34 @@ class CryVpnService : VpnService() {
 
   private var dir: File? = null
   private var corePid = 0
+  /**
+   * Своя копия туннеля, пока включена защита от утечки. Ядро получает
+   * туннель в своё распоряжение, а служба держит ещё одну ручку. Пока она
+   * открыта, Android не снимает VPN, даже если ядро упало: трафик уходит в
+   * туннель и там ждёт, а не идёт в интернет напрямую.
+   */
+  private var held: ParcelFileDescriptor? = null
+
+  private fun release() {
+    try {
+      held?.close()
+    } catch (e: Exception) {
+    }
+    held = null
+    file(BLOCK_MARK)?.delete()
+  }
   private val handler = Handler(Looper.getMainLooper())
   private val watch = object : Runnable {
     override fun run() {
       if (corePid > 0 && !File("/proc/$corePid").exists()) {
-        // Ядро умерло само — туннель без него бесполезен.
         corePid = 0
+        if (held != null) {
+          // Защита от утечки включена: туннель держим, интернет закрыт,
+          // пока человек не переподключится или не снимет защиту.
+          blocked()
+          return
+        }
+        // Ядро умерло само — туннель без него бесполезен.
         shutdown()
         return
       }
@@ -95,8 +123,23 @@ class CryVpnService : VpnService() {
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     if (intent?.action == ACTION_STOP) {
+      // Приложение меняет сервер или отключается, а защита включена: ядро
+      // гасим, туннель держим. Отпустит его следующее подключение или
+      // решение человека снять защиту (оно придёт отдельной командой).
+      if (intent.getBooleanExtra(EXTRA_KEEP, false) && held != null) {
+        handler.removeCallbacks(watch)
+        killCore()
+        file("tunnel.on")?.delete()
+        file(BLOCK_MARK)?.writeText("1")
+        CryTileService.refresh(this)
+        CryWidget.refresh(this)
+        return START_NOT_STICKY
+      }
       // Кнопка в уведомлении: помечаем, что это решение человека, а не обрыв.
       if (intent.getBooleanExtra(EXTRA_FROM_USER, false)) file("tunnel.end")?.writeText(OUTSIDE)
+      // Человек отключил VPN — защиту тоже снимаем: интернет без VPN он
+      // выбрал сам.
+      release()
       // Останавливаемся «по номеру»: если следом уже пришёл новый запуск
       // (человек переключил сервер), служба остаётся жить и поднимет его.
       // Обычная остановка сняла бы службу вместе со свежим туннелем.
@@ -131,6 +174,7 @@ class CryVpnService : VpnService() {
       intent?.getStringArrayExtra(EXTRA_DNS)?.toList() ?: listOf()
     }).filter { it.isNotBlank() }.ifEmpty { listOf("1.1.1.1", "8.8.8.8") }
     val title = if (last) prefs.getString(EXTRA_TITLE, "").orEmpty() else intent?.getStringExtra(EXTRA_TITLE).orEmpty()
+    val kill = if (last) prefs.getBoolean(EXTRA_KILL, false) else intent?.getBooleanExtra(EXTRA_KILL, false) ?: false
     if (folder == null || core == null || assets == null) {
       stopNow()
       return START_NOT_STICKY
@@ -162,6 +206,7 @@ class CryVpnService : VpnService() {
             .putString(EXTRA_BYPASS, bypass.joinToString("\n"))
             .putString(EXTRA_DNS, dns.joinToString("\n"))
             .putString(EXTRA_TITLE, title)
+            .putBoolean(EXTRA_KILL, kill)
             .apply()
         } catch (e: Exception) {
         }
@@ -199,6 +244,9 @@ class CryVpnService : VpnService() {
       }
       if (Build.VERSION.SDK_INT >= 29) builder.setMetered(false)
       val tun = builder.establish() ?: throw IllegalStateException("Android не выдал туннель")
+      // Новый туннель уже стоит — прежний, удерживаемый защитой, отпускаем.
+      // Между ними трафик не выходит наружу ни на миг.
+      release()
       val fd = tun.detachFd()
       val pid = try {
         spawnCore(
@@ -209,10 +257,12 @@ class CryVpnService : VpnService() {
           fd
         )
       } finally {
-        // Свой экземпляр туннеля закрываем в любом случае: при удаче он
-        // дальше живёт вместе с ядром, при неудаче не должен утечь.
+        // Свой экземпляр туннеля закрываем: при удаче он дальше живёт вместе
+        // с ядром, при неудаче не должен утечь. С защитой от утечки — держим
+        // у себя (см. `held`), пока ядро работает или пока её не снимут.
         try {
-          ParcelFileDescriptor.adoptFd(fd).close()
+          val own = ParcelFileDescriptor.adoptFd(fd)
+          if (kill) held = own else own.close()
         } catch (e: Exception) {
         }
       }
@@ -238,6 +288,9 @@ class CryVpnService : VpnService() {
   /** Человек выключил VPN в настройках системы или включил другой VPN. */
   override fun onRevoke() {
     file("tunnel.end")?.writeText(OUTSIDE)
+    // VPN забрали — другой VPN или человек в настройках системы. Держать
+    // туннель мы больше не можем и не должны.
+    release()
     shutdown()
     super.onRevoke()
   }
@@ -245,6 +298,7 @@ class CryVpnService : VpnService() {
   override fun onDestroy() {
     handler.removeCallbacks(watch)
     killCore()
+    release()
     super.onDestroy()
   }
 
@@ -253,6 +307,41 @@ class CryVpnService : VpnService() {
       android.os.Process.killProcess(corePid)
       corePid = 0
     }
+  }
+
+  /**
+   * VPN оборвался, защита держит интернет. Служба остаётся работать, в
+   * шторке — объяснение и две кнопки: подключиться снова или снять защиту.
+   */
+  private fun blocked() {
+    handler.removeCallbacks(watch)
+    file("tunnel.on")?.delete()
+    file(BLOCK_MARK)?.writeText("1")
+    CryTileService.refresh(this)
+    CryWidget.refresh(this)
+    val open = PendingIntent.getActivity(
+      this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+    )
+    val again = PendingIntent.getService(
+      this, 2, Intent(this, CryVpnService::class.java).setAction(ACTION_START_LAST), PendingIntent.FLAG_IMMUTABLE
+    )
+    val stop = PendingIntent.getService(
+      this, 1, Intent(this, CryVpnService::class.java).setAction(ACTION_STOP).putExtra(EXTRA_FROM_USER, true), PendingIntent.FLAG_IMMUTABLE
+    )
+    val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this)
+    val notification = builder
+      .setContentTitle("🛡 VPN оборвался — интернет на паузе")
+      .setContentText("Защита от утечки не пускает трафик мимо VPN. Подключитесь снова или снимите защиту")
+      .setSmallIcon(R.drawable.ic_robot)
+      .setContentIntent(open)
+      .setOngoing(true)
+      .apply {
+        if (Build.VERSION.SDK_INT >= 26) setBadgeIconType(Notification.BADGE_ICON_NONE)
+      }
+      .addAction(Notification.Action.Builder(null, "Подключить снова", again).build())
+      .addAction(Notification.Action.Builder(null, "Снять защиту", stop).build())
+      .build()
+    getSystemService(NotificationManager::class.java)?.notify(1, notification)
   }
 
   private fun shutdown() {

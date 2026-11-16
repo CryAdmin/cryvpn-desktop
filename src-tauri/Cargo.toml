@@ -1,6 +1,6 @@
 [package]
 name = "cryvpn"
-version = "0.1.36"
+version = "0.1.37"
 description = "CryVPN desktop client"
 authors = ["CryVPN"]
 license = "GPL-3.0-only"
@@ -47,7 +47,7 @@ tauri-plugin-dialog = "2"
 
 # Windows: сведения о сети спрашиваем у системы напрямую, без PowerShell.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_Security_Cryptography"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_Security", "Win32_Security_Cryptography", "Win32_NetworkManagement_WindowsFilteringPlatform", "Win32_System_Rpc"] }
 
 # Linux: вход и список серверов шифруем, а ключ держим в связке ключей
 # рабочего стола.
