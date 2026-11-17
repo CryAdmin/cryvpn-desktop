@@ -78,18 +78,25 @@ open class CryWidget : AppWidgetProvider() {
       val views = RemoteViews(context.packageName, layout)
       views.setImageViewResource(R.id.widget_icon, if (on) R.drawable.widget_orb_on else R.drawable.widget_orb_off)
       views.setInt(R.id.widget_root, "setBackgroundResource", if (on) R.drawable.widget_bg_on else R.drawable.widget_bg)
-      if (!small) decorate(views, on, options)
+      if (!small) decorate(context, views, on, options)
       views.setOnClickPendingIntent(R.id.widget_root, click(context, on))
       return views
     }
 
     /** Подпись большого виджета. */
-    private fun decorate(views: RemoteViews, on: Boolean, options: Bundle?) {
+    private fun decorate(context: Context, views: RemoteViews, on: Boolean, options: Bundle?) {
       views.setTextViewText(R.id.widget_state, if (on) "● Включён" else "○ Выключен")
       views.setTextColor(R.id.widget_state, if (on) GREEN else 0x99FFFFFF.toInt())
       // В одну клетку подпись не помещается — остаётся одна голова робота.
       val width = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
-      views.setViewVisibility(R.id.widget_text, if (width in 1..99) View.GONE else View.VISIBLE)
+      val narrow = width in 1..99
+      views.setViewVisibility(R.id.widget_text, if (narrow) View.GONE else View.VISIBLE)
+      // Отступы плитки 4 слева и 12 справа рассчитаны на шар с подписью.
+      // Без подписи они сдвигали шар влево — тогда отступов нет, шар по центру
+      val dp = context.resources.displayMetrics.density
+      val start = if (narrow) 0 else (4 * dp).toInt()
+      val end = if (narrow) 0 else (12 * dp).toInt()
+      views.setViewPadding(R.id.widget_root, start, 0, end, 0)
     }
 
     /** Что сделает нажатие: переключит VPN само или откроет приложение. */

@@ -8,6 +8,9 @@ mod link;
 mod net;
 mod paths;
 mod secrets;
+// Нужен только Windows, но проверки логики идут на всех системах.
+#[cfg_attr(not(windows), allow(dead_code))]
+mod serverdns;
 mod settings;
 mod update;
 #[cfg(windows)]
