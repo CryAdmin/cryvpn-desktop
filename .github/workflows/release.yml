@@ -140,11 +140,18 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android
+          # armv7 — для 32-битного Android (бюджетные Samsung вроде Galaxy A13).
+          targets: aarch64-linux-android, armv7-linux-androideabi
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+
+      # Ядро под 32-битный ARM Xray не выпускает — собираем его из исходников.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+          cache: false
 
       - name: Ядро (со сверкой контрольной суммы)
         run: ./scripts/resources-android.sh
@@ -172,7 +179,7 @@ jobs:
       - name: Сборка APK
         run: |
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
-          npm run tauri android build -- --apk --target aarch64
+          npm run tauri android build -- --apk --target aarch64 armv7
 
       - name: Имя и контрольная сумма
         run: |
