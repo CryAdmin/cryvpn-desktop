@@ -139,6 +139,15 @@ pub fn просьба_с_плитки() -> bool {
         .unwrap_or(false)
 }
 
+/// Открыть системный список VPN — там выключают «Постоянный VPN» у чужого
+/// приложения, из-за которого Android не спрашивает согласия у нашего.
+pub fn открыть_настройки_vpn() -> Result<(), String> {
+    мост()?
+        .run_mobile_plugin::<serde_json::Value>("vpnSettings", ())
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 /// Отдаём системе проверенный APK: она покажет окно установки поверх.
 pub async fn установить(пакет: &Path) -> Result<(), String> {
     мост()?

@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
+import android.os.SystemClock
+import android.os.UserManager
 import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -244,18 +246,59 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
   private fun askVpnConsent(invoke: Invoke) {
     val consent = VpnService.prepare(activity)
     if (consent != null) {
+      consentAskedAt = SystemClock.elapsedRealtime()
       startActivityForResult(invoke, consent, "onConsent")
     } else {
       launch(invoke)
     }
   }
 
+  /** Когда открыли системное окно согласия на VPN. */
+  private var consentAskedAt = 0L
+
+  /**
+   * Окно согласия Android закрывает само, ничего не показав, в двух случаях:
+   * VPN запрещён на телефоне (родительский контроль, рабочий профиль) или у
+   * другого приложения включён «Постоянный VPN». Человек тогда видит только
+   * «нельзя без разрешения», хотя ни о чём его не спрашивали. Отличаем это
+   * по времени: прочитать окно и нажать «Отмена» за полторы секунды никто
+   * не успевает.
+   */
   @ActivityCallback
   fun onConsent(invoke: Invoke, result: ActivityResult) {
     if (result.resultCode == Activity.RESULT_OK) {
       launch(invoke)
-    } else {
-      invoke.reject("Без разрешения на VPN подключиться нельзя")
+      return
+    }
+    val silent = SystemClock.elapsedRealtime() - consentAskedAt < 1500
+    val forbidden = try {
+      activity.getSystemService(UserManager::class.java)
+        ?.hasUserRestriction(UserManager.DISALLOW_CONFIG_VPN) == true
+    } catch (e: Exception) {
+      false
+    }
+    invoke.reject(
+      when {
+        forbidden -> "🚫 На этом телефоне VPN запрещён настройками: родительский контроль или рабочий профиль"
+        silent -> "🔒 Android не открыл окно разрешения: у другого VPN включён «Постоянный VPN». Выключите его и подключитесь снова"
+        else -> "Без разрешения на VPN подключиться нельзя"
+      }
+    )
+  }
+
+  /** Системный список VPN: там у чужого приложения выключают «Постоянный VPN». */
+  @Command
+  fun vpnSettings(invoke: Invoke) {
+    try {
+      activity.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
+      invoke.resolve(JSObject())
+    } catch (e: Exception) {
+      try {
+        activity.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+        invoke.resolve(JSObject())
+      } catch (e2: Exception) {
+        invoke.reject("Android не открыл настройки VPN")
+      }
     }
   }
 
