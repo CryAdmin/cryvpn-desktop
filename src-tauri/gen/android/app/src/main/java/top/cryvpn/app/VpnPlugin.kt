@@ -319,8 +319,41 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
         .putExtra(CryVpnService.EXTRA_TITLE, pendingTitle)
       if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent) else activity.startService(intent)
       invoke.resolve(JSObject())
+      // Когда туннель поднимется — один раз попросим не экономить на нас
+      // батарею. Раньше нельзя: окна согласия на VPN и уведомления только
+      // что закрылись, и третье подряд человек пролистнул бы не читая.
+      val dir = pendingDir
+      android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        if (File(dir, "tunnel.on").exists()) askBattery()
+      }, 4000)
     } catch (e: Exception) {
       invoke.reject("Android не дал запустить службу VPN: ${e.message}")
+    }
+  }
+
+  /**
+   * Попросить у Android разрешение работать в фоне без ограничений.
+   *
+   * Экономия батареи на многих телефонах (Xiaomi, Huawei, Samsung и
+   * других) гасит фоновые службы, VPN в том числе: человек видит, что VPN
+   * «отключился сам» (жалоба 18.11.2026). Система показывает одно окно
+   * «Разрешить работу в фоне?». Спрашиваем один раз: отказ — тоже ответ,
+   * и надоедать им при каждом подключении нельзя.
+   */
+  private fun askBattery() {
+    if (Build.VERSION.SDK_INT < 23) return
+    val prefs = activity.getSharedPreferences("cryvpn", android.content.Context.MODE_PRIVATE)
+    if (prefs.getBoolean("asked_battery", false)) return
+    val power = activity.getSystemService(android.os.PowerManager::class.java) ?: return
+    if (power.isIgnoringBatteryOptimizations(activity.packageName)) return
+    prefs.edit().putBoolean("asked_battery", true).apply()
+    try {
+      activity.startActivity(
+        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+          .setData(android.net.Uri.parse("package:" + activity.packageName))
+      )
+    } catch (e: Exception) {
+      // На телевизорах и некоторых прошивках такого окна нет — не беда.
     }
   }
 

@@ -25,7 +25,8 @@ import java.io.File
  * С приложением служба разговаривает через файлы в его папке данных:
  *   tunnel.on  — туннель поднят и ядро живо;
  *   tunnel.err — почему не удалось подняться;
- *   tunnel.end — почему остановились, если выключили не из приложения.
+ *   tunnel.end — почему остановились, если выключили не из приложения;
+ *   tunnel.restart — ядро только что подняли заново, туннель жив.
  *
  * Собственные соединения приложения (а ядро — дочерний процесс службы) из
  * туннеля исключены: иначе трафик до сервера уходил бы обратно в туннель.
@@ -82,12 +83,35 @@ class CryVpnService : VpnService() {
    */
   private var held: ParcelFileDescriptor? = null
 
+  /**
+   * Своя копия туннеля, когда защита от утечки выключена. Нужна, чтобы
+   * поднять ядро заново, если его убьёт система (см. `respawn`): пока
+   * ручка открыта, Android не снимает VPN.
+   */
+  private var spare: ParcelFileDescriptor? = null
+
+  /** С чем запускали ядро — чтобы поднять его тем же, если оно умрёт. */
+  private class Launch(val folder: String, val core: String, val assets: String)
+  private var launch: Launch? = null
+
+  /** Когда ядро поднимали заново — чтобы не делать этого без конца. */
+  private val restarts = ArrayDeque<Long>()
+
+  private fun closeSpare() {
+    try {
+      spare?.close()
+    } catch (e: Exception) {
+    }
+    spare = null
+  }
+
   private fun release() {
     try {
       held?.close()
     } catch (e: Exception) {
     }
     held = null
+    closeSpare()
     file(BLOCK_MARK)?.delete()
   }
   private val handler = Handler(Looper.getMainLooper())
@@ -95,6 +119,14 @@ class CryVpnService : VpnService() {
     override fun run() {
       if (corePid > 0 && !File("/proc/$corePid").exists()) {
         corePid = 0
+        // Ядро убила система: на телефоне не хватило памяти, или Android
+        // чистил фоновые процессы. Человек VPN не выключал — поднимаем
+        // ядро заново на том же туннеле, он при этом не опускается
+        // (жалоба 18.11.2026: «VPN отключается сам»).
+        if (respawn()) {
+          handler.postDelayed(this, 1000)
+          return
+        }
         if (held != null) {
           // Защита от утечки включена: туннель держим, интернет закрыт,
           // пока человек не переподключится или не снимет защиту.
@@ -115,7 +147,50 @@ class CryVpnService : VpnService() {
         }
       } catch (e: Exception) {
       }
-      handler.postDelayed(this, 2000)
+      // Ядро после перезапуска живо — отметка для приложения больше не нужна.
+      if (corePid > 0) file("tunnel.restart")?.takeIf { it.exists() }?.delete()
+      // Раз в секунду: приложение считает VPN оборванным после трёх секунд
+      // молчания ядра, и перезапуск должен успеть раньше. Проверка — одно
+      // обращение к файловой системе, батарею это не тратит.
+      handler.postDelayed(this, 1000)
+    }
+  }
+
+  /**
+   * Поднять ядро заново на том же туннеле. Конфигурацию берём из
+   * зашифрованной копии прошлого запуска. Не чаще пяти раз за десять
+   * минут: если ядро падает от самой конфигурации, кругами не ходим.
+   */
+  private fun respawn(): Boolean {
+    val tun = held ?: spare ?: return false
+    val how = launch ?: return false
+    val now = android.os.SystemClock.elapsedRealtime()
+    while (restarts.isNotEmpty() && now - restarts.first() > 10 * 60_000) restarts.removeFirst()
+    if (restarts.size >= 5) return false
+    restarts.addLast(now)
+    val folder = File(how.folder)
+    val config = File(folder, "current.json")
+    return try {
+      file("tunnel.restart")?.writeText(now.toString())
+      config.writeBytes(Vault.unseal(File(folder, LAST_CONFIG).readText()))
+      // Журнал упавшего ядра откладываем: по нему видно, почему оно умерло.
+      File(folder, "xray.log").renameTo(File(folder, "xray.prev.log"))
+      val pid = spawnCore(how.core, config.path, how.assets, File(folder, "xray.log").path, tun.fd)
+      handler.postDelayed({ config.delete() }, 4000)
+      if (pid <= 0) {
+        file("tunnel.restart")?.delete()
+        false
+      } else {
+        corePid = pid
+        // Отметку не переписываем: по её времени окно считает, сколько VPN
+        // уже работает, а для человека он и не прерывался.
+        file("tunnel.on")?.takeIf { !it.exists() }?.writeText("1")
+        true
+      }
+    } catch (e: Throwable) {
+      config.delete()
+      file("tunnel.restart")?.delete()
+      false
     }
   }
 
@@ -192,12 +267,14 @@ class CryVpnService : VpnService() {
         // Конфигурацию достаём из зашифрованной копии. Открытой она лежит
         // на диске несколько секунд, пока ядро её не прочтёт.
         config.writeBytes(Vault.unseal(File(folder, LAST_CONFIG).readText()))
+        launch = Launch(folder, core, assets)
         file("tunnel.end")?.delete()
         prefs.getString("server", null)?.let { file("tunnel.server")?.writeText(it) }
       } else {
         // Обычный запуск из приложения: запоминаем всё нужное, чтобы в
         // следующий раз плитка включила VPN сама. Ключи сервера — только
         // зашифрованными. Не вышло запомнить — подключению это не помеха.
+        launch = null
         try {
           File(folder, LAST_CONFIG).writeText(Vault.seal(config.readBytes()))
           prefs.edit()
@@ -208,6 +285,8 @@ class CryVpnService : VpnService() {
             .putString(EXTRA_TITLE, title)
             .putBoolean(EXTRA_KILL, kill)
             .apply()
+          // Конфигурация сохранена — если ядро умрёт, поднимем им же.
+          launch = Launch(folder, core, assets)
         } catch (e: Exception) {
         }
       }
@@ -262,12 +341,16 @@ class CryVpnService : VpnService() {
         // у себя (см. `held`), пока ядро работает или пока её не снимут.
         try {
           val own = ParcelFileDescriptor.adoptFd(fd)
-          if (kill) held = own else own.close()
+          // Без защиты тоже держим копию: на ней поднимем ядро заново,
+          // если система его убьёт. Отпускаем, когда VPN выключают.
+          if (kill) held = own else spare = own
         } catch (e: Exception) {
         }
       }
       if (pid <= 0) throw IllegalStateException("ядро не запустилось (код $pid)")
       corePid = pid
+      restarts.clear()
+      file("tunnel.restart")?.delete()
       file("tunnel.on")?.writeText("1")
       CryTileService.refresh(this)
       CryWidget.refresh(this)
@@ -275,7 +358,7 @@ class CryVpnService : VpnService() {
       // уже прочло, а приложения, которое обычно это делает, рядом нет.
       if (last) handler.postDelayed({ config.delete() }, 4000)
       handler.removeCallbacks(watch)
-      handler.postDelayed(watch, 2000)
+      handler.postDelayed(watch, 1000)
     } catch (e: Throwable) {
       // Throwable, а не Exception: сюда попадает и сбой загрузки помощника.
       file("tunnel.err")?.writeText(e.message ?: "не удалось поднять туннель")
@@ -347,6 +430,8 @@ class CryVpnService : VpnService() {
   private fun shutdown() {
     handler.removeCallbacks(watch)
     killCore()
+    closeSpare()
+    file("tunnel.restart")?.delete()
     file("tunnel.on")?.delete()
     CryTileService.refresh(this)
     CryWidget.refresh(this)

@@ -56,8 +56,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.1.42
-        CFBundleVersion: "0.1.42"
+        CFBundleShortVersionString: 0.1.43
+        CFBundleVersion: "0.1.43"
         # Светлые часы над тёмным приложением.
         UIStatusBarStyle: UIStatusBarStyleLightContent
         UIViewControllerBasedStatusBarAppearance: false
@@ -119,8 +119,8 @@ targets:
       path: CryTunnel/Info.plist
       properties:
         CFBundleDisplayName: CryVPN
-        CFBundleShortVersionString: 0.1.42
-        CFBundleVersion: "0.1.42"
+        CFBundleShortVersionString: 0.1.43
+        CFBundleVersion: "0.1.43"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider

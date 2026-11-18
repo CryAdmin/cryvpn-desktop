@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Обновление: приложение отдаёт системе скачанный и проверенный APK. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Спросить у человека разрешение работать в фоне без экономии батареи:
+         иначе Xiaomi, Huawei, Samsung и другие гасят VPN сами. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Список приложений со значком запуска: человек выбирает из него,
          кого пустить мимо VPN. Полного доступа ко всем пакетам не просим. -->
@@ -29,6 +32,7 @@
         android:extractNativeLibs="true"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/tv_banner"
         android:label="@string/app_name"
         android:theme="@style/Theme.cryvpn"
         android:usesCleartextTraffic="${usesCleartextTraffic}">
@@ -36,6 +40,7 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:launchMode="singleTask"
             android:label="@string/main_activity_title"
+            android:banner="@drawable/tv_banner"
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
