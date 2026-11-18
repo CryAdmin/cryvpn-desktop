@@ -2215,3 +2215,51 @@ button:focus-visible,
 .туннель:focus-visible {
   outline-offset: -3px;
 }
+
+/* ===================== объявление целиком ===================== */
+/* Не влезло — прокрутки нет, есть затухание и «Показать всё».
+   Раскрытое показывает текст целиком, без потолка по высоте. */
+.объявление.обрезано {
+  overflow: hidden;
+  padding-bottom: 30px;
+}
+
+.объявление.обрезано::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 54px;
+  border-radius: 0 0 14px 14px;
+  background: linear-gradient(180deg, rgba(19, 24, 32, 0) 0%, #131820 62%);
+  pointer-events: none;
+}
+
+.объявление.развёрнуто {
+  max-height: none;
+  overflow: visible;
+}
+
+.объявление-ещё {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 7px;
+  z-index: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #d29922;
+}
+
+.объявление.развёрнуто .объявление-ещё {
+  position: static;
+  display: block;
+  margin-top: 6px;
+}
+
+/* На телефоне место объявления сворачивается при прокрутке списка —
+   раскрытому нужен простор по высоте. */
+.телефон .место-объявления:has(.объявление.развёрнуто) {
+  max-height: none;
+}
