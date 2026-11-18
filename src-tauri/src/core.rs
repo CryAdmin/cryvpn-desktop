@@ -1608,15 +1608,13 @@ fn прибить_чужие_ядра() {}
 #[cfg(windows)]
 fn прибрать_за_собой() {
     use std::os::windows::process::CommandExt;
-    let скрипт = "\
-$ад = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'CryVPN*' -or $_.InterfaceDescription -like '*CryVPN*' };
-foreach ($а in $ад) {
-  Get-NetRoute -InterfaceIndex $а.ifIndex -ErrorAction SilentlyContinue | Remove-NetRoute -Confirm:$false -ErrorAction SilentlyContinue
-}
-ipconfig /flushdns | Out-Null";
-
-    let _ = Command::new("powershell")
-        .args(["-NoProfile", "-Command", скрипт])
+    // Маршруты — прямой просьбой к системе. Через PowerShell это занимало
+    // на некоторых компьютерах полминуты, и повторное подключение ждало
+    // уборку, пока не упиралось в 45 секунд (см. winnet::снять_маршруты_cryvpn).
+    crate::winnet::снять_маршруты_cryvpn();
+    // Кэш DNS: ipconfig — маленькая программа, запускается мгновенно.
+    let _ = Command::new("ipconfig")
+        .arg("/flushdns")
         .creation_flags(0x08000000)
         .output();
 }
