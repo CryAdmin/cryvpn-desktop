@@ -1,0 +1,687 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0156A4EA07DB868332FCA7B4 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 620C1F5ECC5B41C9CABE8018 /* main.mm */; };
+		0A20727651172297F2A77461 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9BDF9B24EA1916D3EEB1BBD1 /* NetworkExtension.framework */; };
+		0E0D51035C494A684D02800B /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6C25E5B579C2CF8C12A9467 /* Security.framework */; };
+		2DDE66EDECC8D2DA76E9B5A5 /* LibXray.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 83E1529E826299745D2661D0 /* LibXray.xcframework */; };
+		384201F8C4E5B4EF3ED50E54 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9BDF9B24EA1916D3EEB1BBD1 /* NetworkExtension.framework */; };
+		3BCEFBBFE62E1BF8D3A43F05 /* CryTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 41D3D35F1BE3D4B170F52608 /* CryTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		50ADC6881A0D1039150EFFDE /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF25E236CC55624DAB2068E8 /* CoreGraphics.framework */; };
+		74B41516B9D772055F899861 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 098BB085EB13D876589B20E0 /* assets */; };
+		7F0B61BBB5A956FA3D6E50BF /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 08F7DBAC8D0B5934160B2D07 /* libapp.a */; };
+		8FA9F378367B90447E050ABC /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0D120515F23795356003B684 /* MetalKit.framework */; };
+		91244C797A17EFBF6D52442C /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 7EA068A5B5F7AD53CEBF6452 /* LaunchScreen.storyboard */; };
+		98BA9CD753B9984541DDB387 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6C25E5B579C2CF8C12A9467 /* Security.framework */; };
+		B8F1F17E5A369434F4FF5C8A /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B7B33F280C9297A9DD63263 /* CoreFoundation.framework */; };
+		C90E6758033B1F9B95FE6E0F /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 861FA0026019451D7FCB39ED /* Metal.framework */; };
+		CEABC8DB716A0261589081CD /* CryTunnel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F467F30262D7BC72B906B35 /* CryTunnel.swift */; };
+		DF2B4F9D7596ECC5C63F8AA9 /* geo in Resources */ = {isa = PBXBuildFile; fileRef = C75C127663602670018014FF /* geo */; };
+		DFAE4D7EF31F4B4FC4009512 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF8A37AF0EBEF6A3C0D5C333 /* QuartzCore.framework */; };
+		E28BBE16C4783D90213729B0 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF3D2C803F6F24DC59B4E2F /* PacketTunnelProvider.swift */; };
+		E301AB242B121A1720570FA1 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3EEA6B4B64414D9D9B357855 /* UIKit.framework */; };
+		E35A0E7BEE0E77266A467D4D /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 72BF9B799260C30FCBF89FDF /* WebKit.framework */; };
+		E9DB51955233A57EFD6096DC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8DE3BC78DF2354DCF3BA5412 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7FC7C89C9F17A4B60CC52200 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5EE8B195E38EB833A0468BAC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A2BA22BA19A162BF5E94CB12;
+			remoteInfo = CryTunnel;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		7F852B7DAE58ED1FC7F133CE /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				3BCEFBBFE62E1BF8D3A43F05 /* CryTunnel.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		08F7DBAC8D0B5934160B2D07 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		098BB085EB13D876589B20E0 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		0D120515F23795356003B684 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		0F467F30262D7BC72B906B35 /* CryTunnel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryTunnel.swift; sourceTree = "<group>"; };
+		14545D6F27F39CF81B4B41B1 /* cryvpn_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = cryvpn_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1CB61012C01D62A1CFDD4557 /* apps.rs */ = {isa = PBXFileReference; path = apps.rs; sourceTree = "<group>"; };
+		34826740B98BE19A55770F37 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3DB3919BE3DAB8F18EF189AF /* android.rs */ = {isa = PBXFileReference; path = android.rs; sourceTree = "<group>"; };
+		3EEA6B4B64414D9D9B357855 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		41C55F39A81A391290C3D64A /* core.rs */ = {isa = PBXFileReference; path = core.rs; sourceTree = "<group>"; };
+		41D3D35F1BE3D4B170F52608 /* CryTunnel.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = CryTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A387F63D34FDB21833B793D /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		5927BB58E12A0B9BCAE5FFD3 /* net.rs */ = {isa = PBXFileReference; path = net.rs; sourceTree = "<group>"; };
+		5B7B33F280C9297A9DD63263 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		5E0C9AD13BCD05FA82D4F090 /* link.rs */ = {isa = PBXFileReference; path = link.rs; sourceTree = "<group>"; };
+		620C1F5ECC5B41C9CABE8018 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		72BF9B799260C30FCBF89FDF /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		7EA068A5B5F7AD53CEBF6452 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		8189356746E3F7740F54F57A /* secrets.rs */ = {isa = PBXFileReference; path = secrets.rs; sourceTree = "<group>"; };
+		819D6C59A1F3F6AB0542D069 /* paths.rs */ = {isa = PBXFileReference; path = paths.rs; sourceTree = "<group>"; };
+		82C0670E7322CB27979732D6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		83E1529E826299745D2661D0 /* LibXray.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = LibXray.xcframework; path = "../../ios-libs/LibXray.xcframework"; sourceTree = "<group>"; };
+		861FA0026019451D7FCB39ED /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		8CAAEECF128730E6D8F94424 /* killswitch.rs */ = {isa = PBXFileReference; path = killswitch.rs; sourceTree = "<group>"; };
+		8DE3BC78DF2354DCF3BA5412 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		903DCF42EE3F54E560ED2B93 /* settings.rs */ = {isa = PBXFileReference; path = settings.rs; sourceTree = "<group>"; };
+		954D5825A885B8445DB778C7 /* dpapi.rs */ = {isa = PBXFileReference; path = dpapi.rs; sourceTree = "<group>"; };
+		9BDF9B24EA1916D3EEB1BBD1 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
+		9FF3D2C803F6F24DC59B4E2F /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		A6C8B8DAF85A0A39459547E3 /* CryTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CryTunnel.entitlements; sourceTree = "<group>"; };
+		AF8A37AF0EBEF6A3C0D5C333 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		B9F13C92D02ABBC234FD3079 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		C6C25E5B579C2CF8C12A9467 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		C75C127663602670018014FF /* geo */ = {isa = PBXFileReference; lastKnownFileType = folder; name = geo; path = "../../ios-libs/geo"; sourceTree = SOURCE_ROOT; };
+		D788C79D2C30BA9E48448F1D /* update.rs */ = {isa = PBXFileReference; path = update.rs; sourceTree = "<group>"; };
+		DA21D989B243B1592C7D331D /* device.rs */ = {isa = PBXFileReference; path = device.rs; sourceTree = "<group>"; };
+		DF25E236CC55624DAB2068E8 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		DF555A48DB8E05A8928F082D /* cryvpn_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = cryvpn_iOS.entitlements; sourceTree = "<group>"; };
+		DFBC105EA79B3922BF7A8FD6 /* api.rs */ = {isa = PBXFileReference; path = api.rs; sourceTree = "<group>"; };
+		E16CBD8DB7A1D7F6F7B60F99 /* ios.rs */ = {isa = PBXFileReference; path = ios.rs; sourceTree = "<group>"; };
+		EAC037C00E7071EEF606E87F /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		EE4DED202BC4A8B8DE53C49F /* winnet.rs */ = {isa = PBXFileReference; path = winnet.rs; sourceTree = "<group>"; };
+		EFDCCF7BFD6D0223C6120399 /* serverdns.rs */ = {isa = PBXFileReference; path = serverdns.rs; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		48EBEF07A921E31A9FB9E09E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2DDE66EDECC8D2DA76E9B5A5 /* LibXray.xcframework in Frameworks */,
+				384201F8C4E5B4EF3ED50E54 /* NetworkExtension.framework in Frameworks */,
+				0E0D51035C494A684D02800B /* Security.framework in Frameworks */,
+				B8F1F17E5A369434F4FF5C8A /* CoreFoundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DB1A681A22D5B0E123400DF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7F0B61BBB5A956FA3D6E50BF /* libapp.a in Frameworks */,
+				50ADC6881A0D1039150EFFDE /* CoreGraphics.framework in Frameworks */,
+				C90E6758033B1F9B95FE6E0F /* Metal.framework in Frameworks */,
+				8FA9F378367B90447E050ABC /* MetalKit.framework in Frameworks */,
+				DFAE4D7EF31F4B4FC4009512 /* QuartzCore.framework in Frameworks */,
+				98BA9CD753B9984541DDB387 /* Security.framework in Frameworks */,
+				E301AB242B121A1720570FA1 /* UIKit.framework in Frameworks */,
+				E35A0E7BEE0E77266A467D4D /* WebKit.framework in Frameworks */,
+				0A20727651172297F2A77461 /* NetworkExtension.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2586D39435892E3430366E06 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				5B7B33F280C9297A9DD63263 /* CoreFoundation.framework */,
+				DF25E236CC55624DAB2068E8 /* CoreGraphics.framework */,
+				08F7DBAC8D0B5934160B2D07 /* libapp.a */,
+				83E1529E826299745D2661D0 /* LibXray.xcframework */,
+				861FA0026019451D7FCB39ED /* Metal.framework */,
+				0D120515F23795356003B684 /* MetalKit.framework */,
+				9BDF9B24EA1916D3EEB1BBD1 /* NetworkExtension.framework */,
+				AF8A37AF0EBEF6A3C0D5C333 /* QuartzCore.framework */,
+				C6C25E5B579C2CF8C12A9467 /* Security.framework */,
+				3EEA6B4B64414D9D9B357855 /* UIKit.framework */,
+				72BF9B799260C30FCBF89FDF /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		35C42E753CB60E4168C01FCF /* src */ = {
+			isa = PBXGroup;
+			children = (
+				3DB3919BE3DAB8F18EF189AF /* android.rs */,
+				DFBC105EA79B3922BF7A8FD6 /* api.rs */,
+				1CB61012C01D62A1CFDD4557 /* apps.rs */,
+				41C55F39A81A391290C3D64A /* core.rs */,
+				DA21D989B243B1592C7D331D /* device.rs */,
+				954D5825A885B8445DB778C7 /* dpapi.rs */,
+				E16CBD8DB7A1D7F6F7B60F99 /* ios.rs */,
+				8CAAEECF128730E6D8F94424 /* killswitch.rs */,
+				4A387F63D34FDB21833B793D /* lib.rs */,
+				5E0C9AD13BCD05FA82D4F090 /* link.rs */,
+				B9F13C92D02ABBC234FD3079 /* main.rs */,
+				5927BB58E12A0B9BCAE5FFD3 /* net.rs */,
+				819D6C59A1F3F6AB0542D069 /* paths.rs */,
+				8189356746E3F7740F54F57A /* secrets.rs */,
+				EFDCCF7BFD6D0223C6120399 /* serverdns.rs */,
+				903DCF42EE3F54E560ED2B93 /* settings.rs */,
+				D788C79D2C30BA9E48448F1D /* update.rs */,
+				EE4DED202BC4A8B8DE53C49F /* winnet.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		3828E3D26FCBC00E9D0B0278 = {
+			isa = PBXGroup;
+			children = (
+				098BB085EB13D876589B20E0 /* assets */,
+				8DE3BC78DF2354DCF3BA5412 /* Assets.xcassets */,
+				C75C127663602670018014FF /* geo */,
+				7EA068A5B5F7AD53CEBF6452 /* LaunchScreen.storyboard */,
+				E3708B2EFDD8F42DB6C9D8E7 /* CryTunnel */,
+				CF809126135574DC14ED5226 /* cryvpn_iOS */,
+				CDF6D0078B6B06E993205764 /* Externals */,
+				A21B26E9626B483C73A4C5D2 /* Sources */,
+				35C42E753CB60E4168C01FCF /* src */,
+				2586D39435892E3430366E06 /* Frameworks */,
+				F17105D39143141EBA4F93F2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		56AF2E70479E15172C4DBF50 /* cryvpn */ = {
+			isa = PBXGroup;
+			children = (
+				0F467F30262D7BC72B906B35 /* CryTunnel.swift */,
+				620C1F5ECC5B41C9CABE8018 /* main.mm */,
+				F65F4ACD63BCDBB91977BF5F /* bindings */,
+			);
+			path = cryvpn;
+			sourceTree = "<group>";
+		};
+		A21B26E9626B483C73A4C5D2 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				56AF2E70479E15172C4DBF50 /* cryvpn */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		CDF6D0078B6B06E993205764 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		CF809126135574DC14ED5226 /* cryvpn_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				DF555A48DB8E05A8928F082D /* cryvpn_iOS.entitlements */,
+				34826740B98BE19A55770F37 /* Info.plist */,
+			);
+			path = cryvpn_iOS;
+			sourceTree = "<group>";
+		};
+		E3708B2EFDD8F42DB6C9D8E7 /* CryTunnel */ = {
+			isa = PBXGroup;
+			children = (
+				A6C8B8DAF85A0A39459547E3 /* CryTunnel.entitlements */,
+				82C0670E7322CB27979732D6 /* Info.plist */,
+				9FF3D2C803F6F24DC59B4E2F /* PacketTunnelProvider.swift */,
+			);
+			path = CryTunnel;
+			sourceTree = "<group>";
+		};
+		F17105D39143141EBA4F93F2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				41D3D35F1BE3D4B170F52608 /* CryTunnel.appex */,
+				14545D6F27F39CF81B4B41B1 /* cryvpn_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F65F4ACD63BCDBB91977BF5F /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				EAC037C00E7071EEF606E87F /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		"TEMP_3CECC78E-B40E-462F-9B51-10F84BFE7D94" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
+			sourceTree = "<group>";
+		};
+		"TEMP_90A4E62F-8533-4A6F-98EE-4A8A19AD79AE" /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		67C931A1C08D32EA45BB1864 /* cryvpn_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 218FBF942C3D4E6519FC0F20 /* Build configuration list for PBXNativeTarget "cryvpn_iOS" */;
+			buildPhases = (
+				4833EB481EE22483290B135A /* Build Rust Code */,
+				7EBABCB03E7336C6602B4ACD /* Sources */,
+				9FC5E0AAFB7911E48E6A1751 /* Resources */,
+				7DB1A681A22D5B0E123400DF /* Frameworks */,
+				7F852B7DAE58ED1FC7F133CE /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				374DCBD6E2E092115ED997A7 /* PBXTargetDependency */,
+			);
+			name = cryvpn_iOS;
+			packageProductDependencies = (
+			);
+			productName = cryvpn_iOS;
+			productReference = 14545D6F27F39CF81B4B41B1 /* cryvpn_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A2BA22BA19A162BF5E94CB12 /* CryTunnel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3267A5DE9341DAA4EFE4BDB4 /* Build configuration list for PBXNativeTarget "CryTunnel" */;
+			buildPhases = (
+				E91A68B18857BEF1F40A38E9 /* Sources */,
+				C7D137ADFF3B2A44DB82CDBE /* Resources */,
+				48EBEF07A921E31A9FB9E09E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CryTunnel;
+			packageProductDependencies = (
+			);
+			productName = CryTunnel;
+			productReference = 41D3D35F1BE3D4B170F52608 /* CryTunnel.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5EE8B195E38EB833A0468BAC /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 4F7D37A43FAF18C87916EF08 /* Build configuration list for PBXProject "cryvpn" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 3828E3D26FCBC00E9D0B0278;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F17105D39143141EBA4F93F2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				67C931A1C08D32EA45BB1864 /* cryvpn_iOS */,
+				A2BA22BA19A162BF5E94CB12 /* CryTunnel */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9FC5E0AAFB7911E48E6A1751 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E9DB51955233A57EFD6096DC /* Assets.xcassets in Resources */,
+				91244C797A17EFBF6D52442C /* LaunchScreen.storyboard in Resources */,
+				74B41516B9D772055F899861 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C7D137ADFF3B2A44DB82CDBE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DF2B4F9D7596ECC5C63F8AA9 /* geo in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		4833EB481EE22483290B135A /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "npm run -- tauri ios xcode-script -v --platform \"${PLATFORM_DISPLAY_NAME:?}\" --sdk-root \"${SDKROOT:?}\" --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration \"${CONFIGURATION:?}\" ${FORCE_COLOR} ${ARCHS:?}\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7EBABCB03E7336C6602B4ACD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CEABC8DB716A0261589081CD /* CryTunnel.swift in Sources */,
+				0156A4EA07DB868332FCA7B4 /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E91A68B18857BEF1F40A38E9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E28BBE16C4783D90213729B0 /* PacketTunnelProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		374DCBD6E2E092115ED997A7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A2BA22BA19A162BF5E94CB12 /* CryTunnel */;
+			targetProxy = 7FC7C89C9F17A4B60CC52200 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		6A96BA3650406113BDE3BC3F /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = cryvpn_iOS/cryvpn_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = cryvpn_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = top.cryvpn.app;
+				PRODUCT_NAME = "CryVPN";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		77D604F0D90DFF5F3B44A5A5 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		828BD4CF1008216EA5AA336D /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = (
+					arm64,
+				);
+				CODE_SIGN_ENTITLEMENTS = CryTunnel/CryTunnel.entitlements;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../ios-libs\"",
+				);
+				INFOPLIST_FILE = CryTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				OTHER_LDFLAGS = "-lresolv";
+				PRODUCT_BUNDLE_IDENTIFIER = top.cryvpn.app.tunnel;
+				PRODUCT_NAME = CryTunnel;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = debug;
+		};
+		A77D934312141E24326FFA2D /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = (
+					arm64,
+				);
+				CODE_SIGN_ENTITLEMENTS = CryTunnel/CryTunnel.entitlements;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../ios-libs\"",
+				);
+				INFOPLIST_FILE = CryTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				OTHER_LDFLAGS = "-lresolv";
+				PRODUCT_BUNDLE_IDENTIFIER = top.cryvpn.app.tunnel;
+				PRODUCT_NAME = CryTunnel;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = release;
+		};
+		B0418FBEC7D1F2A8D86921E9 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		BD41AE55EA6AE6606484382C /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = cryvpn_iOS/cryvpn_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = cryvpn_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = top.cryvpn.app;
+				PRODUCT_NAME = "CryVPN";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		218FBF942C3D4E6519FC0F20 /* Build configuration list for PBXNativeTarget "cryvpn_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BD41AE55EA6AE6606484382C /* debug */,
+				6A96BA3650406113BDE3BC3F /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		3267A5DE9341DAA4EFE4BDB4 /* Build configuration list for PBXNativeTarget "CryTunnel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				828BD4CF1008216EA5AA336D /* debug */,
+				A77D934312141E24326FFA2D /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		4F7D37A43FAF18C87916EF08 /* Build configuration list for PBXProject "cryvpn" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B0418FBEC7D1F2A8D86921E9 /* debug */,
+				77D604F0D90DFF5F3B44A5A5 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5EE8B195E38EB833A0468BAC /* Project object */;
+}

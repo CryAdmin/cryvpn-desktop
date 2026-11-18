@@ -1,0 +1,146 @@
+name: cryvpn
+options:
+  bundleIdPrefix: top.cryvpn.app
+  deploymentTarget:
+    iOS: 15.0
+fileGroups: [../../src]
+configs:
+  debug: debug
+  release: release
+settingGroups:
+  app:
+    base:
+      PRODUCT_NAME: CryVPN
+      PRODUCT_BUNDLE_IDENTIFIER: top.cryvpn.app
+targetTemplates:
+  app:
+    type: application
+    sources:
+      - path: Sources
+    scheme:
+      environmentVariables:
+        RUST_BACKTRACE: full
+        RUST_LOG: info
+    settings:
+      groups: [app]
+targets:
+  cryvpn_iOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Assets.xcassets
+      # Exclude built static libs: regenerating with xcodegen after a build
+      # otherwise turns the per-configuration libapp.a copies into colliding
+      # resources ("Multiple commands produce …/libapp.a"). They are linked
+      # via LIBRARY_SEARCH_PATHS, never bundled as resources.
+      - path: Externals
+        excludes: ["**/*.a"]
+      - path: cryvpn_iOS
+      - path: assets
+        buildPhase: resources
+        type: folder
+      - path: LaunchScreen.storyboard
+    info:
+      path: cryvpn_iOS/Info.plist
+      properties:
+        LSRequiresIPhoneOS: true
+        UILaunchStoryboardName: LaunchScreen
+        UIRequiredDeviceCapabilities: [arm64, metal]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CFBundleShortVersionString: 0.1.42
+        CFBundleVersion: "0.1.42"
+        # Светлые часы над тёмным приложением.
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UIViewControllerBasedStatusBarAppearance: false
+        # Ссылки cryvpn:// (кнопка «Открыть в CryVPN» на странице подписки).
+        CFBundleURLTypes:
+          - CFBundleURLName: top.cryvpn.app
+            CFBundleURLSchemes: [cryvpn]
+    entitlements:
+      path: cryvpn_iOS/cryvpn_iOS.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
+    scheme:
+      environmentVariables:
+        RUST_BACKTRACE: full
+        RUST_LOG: info
+    settings:
+      base:
+        ENABLE_BITCODE: false
+        ARCHS: [arm64]
+        VALID_ARCHS: arm64 
+        LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
+        LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
+        EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+      groups: [app]
+    dependencies:
+      - framework: libapp.a
+        embed: false
+      - sdk: CoreGraphics.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: QuartzCore.framework
+      - sdk: Security.framework
+      - sdk: UIKit.framework
+      - sdk: WebKit.framework
+      - sdk: NetworkExtension.framework
+      # Расширение VPN (CryTunnel) ставится вместе с приложением.
+      - target: CryTunnel
+    preBuildScripts:
+      - script: |
+          npm run -- tauri ios xcode-script -v --platform "${PLATFORM_DISPLAY_NAME:?}" --sdk-root "${SDKROOT:?}" --framework-search-paths "${FRAMEWORK_SEARCH_PATHS:?}" --header-search-paths "${HEADER_SEARCH_PATHS:?}" --gcc-preprocessor-definitions "${GCC_PREPROCESSOR_DEFINITIONS:-}" --configuration "${CONFIGURATION:?}" ${FORCE_COLOR} ${ARCHS:?}
+        name: Build Rust Code
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
+          - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  # Расширение VPN: в нём работает ядро Xray, iOS держит его живым, пока
+  # VPN включён, даже без окна приложения.
+  CryTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: CryTunnel
+      # Базы geoip/geosite — кладёт scripts/resources-ios.sh.
+      - path: ../../ios-libs/geo
+        buildPhase: resources
+        type: folder
+    info:
+      path: CryTunnel/Info.plist
+      properties:
+        CFBundleDisplayName: CryVPN
+        CFBundleShortVersionString: 0.1.42
+        CFBundleVersion: "0.1.42"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
+    entitlements:
+      path: CryTunnel/CryTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
+    settings:
+      base:
+        PRODUCT_NAME: CryTunnel
+        PRODUCT_BUNDLE_IDENTIFIER: top.cryvpn.app.tunnel
+        ARCHS: [arm64]
+        EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+        # Ядро — библиотека на Go; ей нужен системный резолвер.
+        OTHER_LDFLAGS: -lresolv
+    dependencies:
+      # Ядро Xray (libXray) — кладёт scripts/resources-ios.sh.
+      - framework: ../../ios-libs/LibXray.xcframework
+        embed: false
+      - sdk: NetworkExtension.framework
+      - sdk: Security.framework
+      - sdk: CoreFoundation.framework

@@ -41,6 +41,15 @@ fn main() {
 </assembly>
 "#;
 
+    // iPhone: мост к VPN написан на Swift (gen/apple/Sources/cryvpn) и
+    // попадает в приложение уже при сборке Xcode, вместе с нашей
+    // библиотекой. Отдельная динамическая библиотека, которую cargo
+    // собирает попутно, на iPhone не нужна — пусть она не требует этих
+    // функций при сборке.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-undefined,dynamic_lookup");
+    }
+
     tauri_build::try_build(
         tauri_build::Attributes::new().windows_attributes(
             tauri_build::WindowsAttributes::new().app_manifest(манифест),

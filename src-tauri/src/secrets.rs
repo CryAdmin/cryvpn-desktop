@@ -12,6 +12,7 @@
 //!          него не извлекается, файл без телефона не расшифровать.
 //! Linux:   шифруем AES-256-GCM, а ключ держим в связке ключей рабочего
 //!          стола (GNOME Keyring, KWallet и другие с тем же интерфейсом).
+//! iPhone:  кладём в Связку ключей iOS; в файле только пометка, где искать.
 //!          Связка заперта — не сохраняем. Связки в системе нет вовсе —
 //!          ключ кладём файлом рядом с данными, закрытым от других
 //!          пользователей: это слабее (ключ и замок лежат вместе), но
@@ -47,6 +48,10 @@ pub fn забыть(имя: &str) {
         let _ = std::process::Command::new("security")
             .args(["delete-generic-password", "-a", "cryvpn", "-s", &служба(имя)])
             .output();
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = security_framework::passwords::delete_generic_password(&служба(имя), "cryvpn");
     }
     if let Some(путь) = файл(имя) {
         let _ = std::fs::remove_file(путь);
@@ -176,7 +181,7 @@ mod проверки {
 
 // ------------------------------------------------------------------ macOS
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn служба(имя: &str) -> String {
     format!("top.cryvpn.app.{имя}")
 }
@@ -205,14 +210,34 @@ fn открыть(имя: &str, закрытое: &str) -> Option<String> {
     Some(String::from_utf8_lossy(&вывод.stdout).trim().to_string())
 }
 
+// ----------------------------------------------------------------- iPhone
+
+// Как на macOS: само значение — в Связке ключей, в файле только пометка.
+// Связка открыта приложению, пока телефон разблокирован после включения.
+#[cfg(target_os = "ios")]
+fn закрыть(имя: &str, открытое: &str) -> Option<String> {
+    security_framework::passwords::set_generic_password(&служба(имя), "cryvpn", открытое.as_bytes())
+        .ok()
+        .map(|_| "keychain:v1".to_string())
+}
+
+#[cfg(target_os = "ios")]
+fn открыть(имя: &str, закрытое: &str) -> Option<String> {
+    if !закрытое.starts_with("keychain:") {
+        return None;
+    }
+    let байты = security_framework::passwords::get_generic_password(&служба(имя), "cryvpn").ok()?;
+    String::from_utf8(байты).ok()
+}
+
 // ----------------------------------------------------------------- прочее
 
-#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux", target_os = "ios")))]
 fn закрыть(_имя: &str, _открытое: &str) -> Option<String> {
     None
 }
 
-#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux", target_os = "ios")))]
 fn открыть(_имя: &str, _закрытое: &str) -> Option<String> {
     None
 }

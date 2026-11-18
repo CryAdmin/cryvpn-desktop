@@ -4,7 +4,7 @@ import { спит } from "./сон.js";
 import Флаг, { безФлага } from "./Флаг.jsx";
 import Настройки from "./Настройки.jsx";
 
-const ТЕЛЕФОН = navigator.userAgent.includes("Android");
+const ТЕЛЕФОН = /Android|iPhone|iPad|iPod/.test(navigator.userAgent);
 
 // Какие туннели умеем. Готовый пока один — остальные помечены честно,
 // чтобы человек не выбрал то, чего нет.
@@ -1116,6 +1116,16 @@ export default function Главная({ профиль, обновить, вы�
                 <li
                   key={т.код}
                   className={`туннель ${т.код === туннель ? "выбран" : ""} ${т.готов ? "" : "скоро"}`}
+                  // Пульт телевизора и клавиатура: строку можно выделить и
+                  // нажать ОК или Enter, см. пульт.js.
+                  tabIndex={т.готов ? 0 : -1}
+                  role="button"
+                  onKeyDown={(е) => {
+                    if (е.key === "Enter" || е.key === " ") {
+                      е.preventDefault();
+                      е.currentTarget.click();
+                    }
+                  }}
                   onClick={() => {
                     if (!т.готов) return;
                     установитьТуннель(т.код);
@@ -1394,6 +1404,21 @@ export default function Главная({ профиль, обновить, вы�
                 key={с.номер}
                 className={с.номер === выбран ? "сервер выбран" : "сервер"}
                 title="Долгое нажатие или правая кнопка мыши — пинг и избранное"
+                // Пульт телевизора и клавиатура: строку можно выделить
+                // стрелками (пульт.js), ОК выбирает сервер, а кнопка меню
+                // пульта открывает пинг и избранное.
+                tabIndex={0}
+                role="button"
+                onKeyDown={(е) => {
+                  if (е.key === "Enter" || е.key === " ") {
+                    е.preventDefault();
+                    if (!е.repeat) выбратьСервер(с.номер);
+                  } else if (е.key === "ContextMenu") {
+                    е.preventDefault();
+                    const р = е.currentTarget.getBoundingClientRect();
+                    открытьМеню(с, р.left + р.width / 2, р.top + р.height / 2);
+                  }
+                }}
                 onPointerDown={(е) => начатьНажатие(с, е)}
                 onPointerUp={отменитьНажатие}
                 onPointerLeave={отменитьНажатие}

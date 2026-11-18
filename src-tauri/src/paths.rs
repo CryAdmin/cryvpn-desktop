@@ -32,7 +32,9 @@ pub fn задать(папка: PathBuf) {
 fn папка_настольная() -> Option<PathBuf> {
     let база = if cfg!(windows) {
         PathBuf::from(std::env::var("LOCALAPPDATA").ok()?)
-    } else if cfg!(target_os = "macos") {
+    } else if cfg!(any(target_os = "macos", target_os = "ios")) {
+        // iPhone: HOME — папка приложения, писать можно только внутрь
+        // Library и Documents, а не в её корень.
         PathBuf::from(std::env::var("HOME").ok()?)
             .join("Library")
             .join("Application Support")

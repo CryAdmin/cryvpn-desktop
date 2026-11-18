@@ -1,5 +1,7 @@
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 mod api;
 mod apps;
 mod core;

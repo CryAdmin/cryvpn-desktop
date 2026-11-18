@@ -91,7 +91,34 @@ pub fn номер() -> String {
     запасной()
 }
 
-#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux")))]
+/// iPhone: номера железа приложению не дают, а имя телефона у всех
+/// одинаковое («localhost»). Поэтому номер придумываем сами — случайный,
+/// один раз — и кладём в Связку ключей. Связка переживает переустановку
+/// приложения, и человек не съедает слоты подписки, удаляя и ставя
+/// CryVPN заново.
+#[cfg(target_os = "ios")]
+pub fn номер() -> String {
+    use security_framework::passwords::{get_generic_password, set_generic_password};
+    const СЛУЖБА: &str = "top.cryvpn.app.device";
+    if let Ok(байты) = get_generic_password(СЛУЖБА, "cryvpn") {
+        let был = пригодный(&String::from_utf8_lossy(&байты));
+        if был.len() >= 10 {
+            return был;
+        }
+    }
+    let mut случайные = [0u8; 16];
+    let прочитано = std::fs::File::open("/dev/urandom")
+        .and_then(|mut ф| std::io::Read::read_exact(&mut ф, &mut случайные));
+    if прочитано.is_err() {
+        return запасной();
+    }
+    let текст: String = случайные.iter().map(|б| format!("{б:02x}")).collect();
+    let новый = format!("ios-{текст}");
+    let _ = set_generic_password(СЛУЖБА, "cryvpn", новый.as_bytes());
+    новый
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "linux", target_os = "ios")))]
 pub fn номер() -> String {
     запасной()
 }
@@ -228,7 +255,12 @@ fn описание_как_есть() -> (String, String, String) {
             .unwrap_or_else(|| "unknown".into());
         return ("Linux".to_string(), версия, имя_компьютера());
     }
-    #[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux")))]
+    #[cfg(target_os = "ios")]
+    {
+        let (модель, версия) = crate::ios::сведения();
+        return ("iOS".to_string(), версия, модель);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux", target_os = "ios")))]
     {
         let ос = if cfg!(windows) { "Windows" } else { "Desktop" };
         let версия = std::env::var("OS").unwrap_or_else(|_| "unknown".into());

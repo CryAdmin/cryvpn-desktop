@@ -31,3 +31,6 @@ src-tauri/gen/android/app/src/main/assets/geosite.dat
 
 # сборка помощника службы VPN
 src-tauri/cryspawn/target/
+
+# Ядро Xray для iPhone (scripts/resources-ios.sh)
+src-tauri/ios-libs/
