@@ -2300,7 +2300,12 @@ button:focus-visible,
 
   .телефон .экран > .шапка {
     grid-column: 1 / -1;
-    grid-row: 1;
+    grid-row: 1;    /* Шапка — во всю ширину окна: шестерёнка в левом углу, устройства
+       и «Выйти» в правом, с небольшим отступом от края. */
+    width: 100vw;
+    justify-self: center;
+    padding: 0 16px;
+    box-sizing: border-box;
   }
 
   .телефон .экран > .верх {
@@ -2387,7 +2392,12 @@ button:focus-visible,
 
   html:not(.телефон) .экран > .шапка {
     grid-column: 1 / -1;
-    grid-row: 1;
+    grid-row: 1;    /* Шапка — во всю ширину окна: шестерёнка в левом углу, устройства
+       и «Выйти» в правом, с небольшим отступом от края. */
+    width: 100vw;
+    justify-self: center;
+    padding: 0 16px;
+    box-sizing: border-box;
   }
 
   html:not(.телефон) .экран > .верх {

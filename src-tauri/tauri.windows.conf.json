@@ -3,8 +3,8 @@
     "windows": [
       {
         "title": "CryVPN",
-        "width": 600,
-        "height": 880,
+        "width": 1040,
+        "height": 760,
         "minWidth": 420,
         "minHeight": 480,
         "resizable": true,
