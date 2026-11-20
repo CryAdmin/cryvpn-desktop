@@ -158,8 +158,8 @@ body {
 }
 
 .круг .щит {
-  width: 56px;
-  height: 64px;
+  width: 64px;
+  height: 74px;
   position: relative;
   z-index: 2;
   transition: filter 0.35s;
@@ -1073,8 +1073,8 @@ body {
 
 /* Робот: крупнее, с собственной тенью; во включённом — горят глаза */
 .круг .щит {
-  width: 78px;
-  height: 78px;
+  width: 90px;
+  height: 90px;
   filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.6));
 }
 
@@ -1232,8 +1232,8 @@ body {
 }
 
 .круг .щит {
-  width: 118px;
-  height: 122px;
+  width: 136px;
+  height: 140px;
   overflow: visible;
 }
 
@@ -1366,8 +1366,8 @@ body {
 }
 
 .круг .щит {
-  width: 94px;
-  height: 97px;
+  width: 108px;
+  height: 112px;
 }
 
 .состояние {
@@ -1698,8 +1698,8 @@ body {
 }
 
 .телефон .экран.сжат .круг .щит {
-  width: 58px;
-  height: 60px;
+  width: 67px;
+  height: 69px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2286,11 +2286,16 @@ button:focus-visible,
 @media (min-width: 760px) and (orientation: landscape) {
   .телефон .экран {
     display: grid;
-    grid-template-columns: minmax(300px, 1fr) minmax(340px, 1.15fr);
+    /* Колонки постоянной ширины, а свободное место делится поровну:
+       от края до кнопки, между колонками и от серверов до края. */
+    grid-template-columns: minmax(0, 420px) minmax(0, 380px);
     grid-template-rows: auto minmax(0, 1fr);
-    column-gap: 28px;
+    justify-content: space-evenly;
+    column-gap: 0;
+    padding-left: 0;
+    padding-right: 0;
     row-gap: 10px;
-    max-width: 1160px;
+    max-width: none;
   }
 
   .телефон .экран > .шапка {
@@ -2305,13 +2310,33 @@ button:focus-visible,
     max-height: none;
     overflow-y: auto;
     scrollbar-width: none;
-    justify-content: center;
+    /* По центру по высоте; не влезает — прижимается к верху, а не
+       обрезается сверху. */
+    justify-content: safe center;
+  }
+
+  /* Кнопка на 30% крупнее: места в колонке хватает. */
+  .телефон .экран .круг,
+  .телефон .экран.сжат .круг {
+    width: 203px;
+    height: 203px;
+  }
+
+  .телефон .экран .круг .щит,
+  .телефон .экран.сжат .круг .щит {
+    width: 140px;
+    height: 145px;
   }
 
   .телефон .экран > .блок {
     grid-column: 2;
     grid-row: 2;
     min-height: 0;
+    /* Строки серверов не во всю колонку: с отступами по бокам они
+       читаются как список, а не как полосы от края до края. */
+    width: 100%;
+    max-width: 380px;
+    justify-self: center;
   }
 
   /* Сжатие верха при прокрутке нужно только узкому телефону: здесь
@@ -2337,13 +2362,65 @@ button:focus-visible,
     padding-bottom: 0;
   }
 
-  .телефон .экран.сжат .круг {
-    width: 156px;
-    height: 156px;
+}
+
+
+/* ===== компьютер: широкое окно — две колонки, как на планшете =====
+   Владелец 20.11.2026: «слева включение, а справа сервера». Окно по
+   умолчанию теперь горизонтальное. Сузишь его меньше 900 точек — всё
+   вернётся в одну колонку, как раньше. */
+@media (min-width: 900px) {
+  html:not(.телефон) .экран {
+    display: grid;
+    /* Колонки постоянной ширины, а свободное место делится поровну:
+       от края до кнопки, между колонками и от серверов до края. */
+    grid-template-columns: minmax(0, 420px) minmax(0, 380px);
+    grid-template-rows: auto minmax(0, 1fr);
+    justify-content: space-evenly;
+    column-gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+    row-gap: 10px;
+    max-width: none;
+    overflow: hidden;
   }
 
-  .телефон .экран.сжат .круг .щит {
-    width: 94px;
-    height: 97px;
+  html:not(.телефон) .экран > .шапка {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  html:not(.телефон) .экран > .верх {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    scrollbar-width: none;
+    /* По центру по высоте; не влезает — прижимается к верху, а не
+       обрезается сверху. */
+    justify-content: safe center;
+  }
+
+  /* Кнопка на 30% крупнее: места в колонке хватает. */
+  html:not(.телефон) .экран .круг {
+    width: 203px;
+    height: 203px;
+  }
+
+  html:not(.телефон) .экран .круг .щит {
+    width: 140px;
+    height: 145px;
+  }
+
+  html:not(.телефон) .экран > .блок {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    /* Строки серверов не во всю колонку: с отступами по бокам они
+       читаются как список, а не как полосы от края до края. */
+    width: 100%;
+    max-width: 380px;
+    justify-self: center;
   }
 }
