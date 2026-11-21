@@ -5,8 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 // само скачивает APK из выпусков открытого репозитория, сверяет его
 // контрольную сумму и отдаёт системе — та показывает окно установки
 // поверх. Поставить за человека нельзя: согласие спрашивает сам Android.
-const АДРЕС_APK =
-  "https://github.com/CryAdmin/cryvpn-desktop/releases/latest/download/CryVPN-Android.apk";
+// Запасной путь через браузер ведёт на наше зеркало, как и сайт: с GitHub
+// в России большой файл часто не докачивается.
+const АДРЕС_APK = "https://crysubik.com/download/CryVPN-Android.apk";
 const ЧАС = 60 * 60 * 1000;
 
 export default function ОбноваТелефон() {

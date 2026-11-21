@@ -116,42 +116,97 @@ async fn скачать_с_суммой(имя: &str) -> Result<PathBuf, String>
         return Err("У вас уже последняя версия".into());
     }
 
-    // Файл суммы — одна строка вида «<64 знака>  <имя файла>».
-    let запись = клиент(20)?
-        .get(format!("{ИСТОЧНИК}{имя}.sha256"))
-        .send()
-        .await
-        .map_err(|_| "Нет связи с сервером обновлений".to_string())?
-        .text()
-        .await
-        .map_err(|_| "Контрольная сумма не читается".to_string())?;
-    let сумма = запись.split_whitespace().next().unwrap_or("").to_lowercase();
-    if сумма.len() != 64 || !сумма.chars().all(|с| с.is_ascii_hexdigit()) {
-        return Err("Контрольная сумма обновления повреждена".into());
+    // Сумму берём из выпуска на GitHub: файл крошечный и доходит даже там,
+    // где большие файлы GitHub режут. Не дошёл — берём у зеркала.
+    let mut сумма = None;
+    for источник in ОТКУДА_КАЧАТЬ.iter().rev() {
+        if let Some(с) = сумма_из(источник, имя).await {
+            сумма = Some(с);
+            break;
+        }
     }
-
-    let ответ = клиент(600)?
-        .get(format!("{ИСТОЧНИК}{имя}"))
-        .send()
-        .await
-        .map_err(|_| "Не удалось скачать обновление".to_string())?;
-    if !ответ.status().is_success() || ответ.content_length().is_some_and(|д| д > ПОТОЛОК) {
-        return Err("Не удалось скачать обновление".into());
-    }
-    let байты = ответ.bytes().await.map_err(|_| "Загрузка оборвалась".to_string())?;
-    let получилось: String =
-        Sha256::digest(&байты).iter().map(|б| format!("{б:02x}")).collect();
-    if получилось != сумма {
-        return Err("Файл обновления не прошёл проверку, попробуйте ещё раз".into());
-    }
+    let сумма = сумма.ok_or_else(|| "Нет связи с сервером обновлений".to_string())?;
 
     let папка = crate::paths::папка_данных()
         .ok_or_else(|| "не найдена папка данных приложения".to_string())?
         .join("update");
     std::fs::create_dir_all(&папка).map_err(|e| e.to_string())?;
     let путь = папка.join(имя);
-    std::fs::write(&путь, &байты).map_err(|e| e.to_string())?;
-    Ok(путь)
+
+    // Приложение само идёт мимо своего VPN, а в России большие файлы с
+    // GitHub часто ползут и обрываются: человек видел «загрузка… не
+    // вышло» (21.11.2026), а с сайта, то есть с зеркала, качалось сразу.
+    // Поэтому сначала наши зеркала, GitHub последним. Зеркало после
+    // выпуска догоняет GitHub за несколько минут; пока не догнало, его
+    // файл не сойдётся с суммой, и мы просто идём к следующему.
+    let mut ошибка = String::from("Не удалось скачать обновление");
+    for источник in ОТКУДА_КАЧАТЬ {
+        match качать_в_файл(&format!("{источник}{имя}"), &путь).await {
+            Ok(получилось) if получилось == сумма => return Ok(путь),
+            Ok(_) => ошибка = "Файл обновления не прошёл проверку, попробуйте ещё раз".into(),
+            Err(причина) => ошибка = причина,
+        }
+    }
+    let _ = std::fs::remove_file(&путь);
+    Err(ошибка)
+}
+
+/// Откуда качаем файлы выпуска, по порядку: два наших зеркала (их же
+/// отдаёт сайт), затем сам GitHub. Зеркала каждые три минуты забирают
+/// свежий выпуск с GitHub, см. ops/cryvpn_mirror_github.py в vpn-bot.
+#[cfg_attr(not(any(target_os = "android", target_os = "linux")), allow(dead_code))]
+const ОТКУДА_КАЧАТЬ: [&str; 3] = [
+    "https://crysubik.com/download/",
+    "https://cryvps.com/download/",
+    ИСТОЧНИК,
+];
+
+/// Файл суммы — одна строка вида «<64 знака>  <имя файла>».
+#[cfg_attr(not(any(target_os = "android", target_os = "linux")), allow(dead_code))]
+async fn сумма_из(источник: &str, имя: &str) -> Option<String> {
+    let ответ = клиент(20).ok()?.get(format!("{источник}{имя}.sha256")).send().await.ok()?;
+    if !ответ.status().is_success() {
+        return None;
+    }
+    let запись = ответ.text().await.ok()?;
+    let сумма = запись.split_whitespace().next().unwrap_or("").to_lowercase();
+    (сумма.len() == 64 && сумма.chars().all(|с| с.is_ascii_hexdigit())).then_some(сумма)
+}
+
+/// Качаем файл кусками прямо на диск и считаем сумму по ходу. Если
+/// данные не идут полминуты, бросаем этот источник, а не ждём десять минут.
+#[cfg_attr(not(any(target_os = "android", target_os = "linux")), allow(dead_code))]
+async fn качать_в_файл(адрес: &str, путь: &PathBuf) -> Result<String, String> {
+    use std::io::Write;
+    let клиент = reqwest::Client::builder()
+        .user_agent(concat!("CryVPN/", env!("CARGO_PKG_VERSION")))
+        .no_proxy()
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .read_timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(900))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut ответ = клиент
+        .get(адрес)
+        .send()
+        .await
+        .map_err(|_| "Не удалось скачать обновление".to_string())?;
+    if !ответ.status().is_success() || ответ.content_length().is_some_and(|д| д > ПОТОЛОК) {
+        return Err("Не удалось скачать обновление".into());
+    }
+    let mut файл = std::fs::File::create(путь).map_err(|e| e.to_string())?;
+    let mut хеш = Sha256::new();
+    let mut всего: u64 = 0;
+    while let Some(кусок) = ответ.chunk().await.map_err(|_| "Загрузка оборвалась".to_string())? {
+        всего += кусок.len() as u64;
+        if всего > ПОТОЛОК {
+            return Err("Не удалось скачать обновление".into());
+        }
+        хеш.update(&кусок);
+        файл.write_all(&кусок).map_err(|e| e.to_string())?;
+    }
+    файл.flush().map_err(|e| e.to_string())?;
+    Ok(хеш.finalize().iter().map(|б| format!("{б:02x}")).collect())
 }
 
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
